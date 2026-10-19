@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#00427F">
+<title>Placar Insana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#00427F; --azul-esc:#00305C; --verde:#45AA4A; --verde-esc:#2F8A35; --navy:#0B1E33;
+  --bg:#F2F5F9; --card:#FFFFFF; --ink:#0B1E33; --muted:#5B6B7F; --line:#DCE3EC; --soft:#E9EEF5;
+  --k:1;
+  --u:calc(min(1vw, 1.78vh) * var(--k));
+}
+@media (orientation:portrait){ :root{ --u:calc(2.3vw * var(--k)); } }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{font-family:Barlow,system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);-webkit-tap-highlight-color:transparent}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+[hidden]{display:none!important}
+
+/* ---------- PLACAR (componente usado na transmissão e na prévia) ---------- */
+.bug{display:inline-flex;flex-direction:column;align-items:flex-start;font-family:'Barlow Condensed',Barlow,sans-serif;
+  filter:drop-shadow(0 calc(var(--u)*.3) calc(var(--u)*.9) rgba(0,0,0,.45));transition:opacity .45s ease,transform .45s ease}
+.bug.oculto{opacity:0;transform:translateY(calc(var(--u)*-1.2))}
+.bug-row{display:flex;align-items:stretch;height:calc(var(--u)*4.4);border-radius:calc(var(--u)*.55);overflow:hidden;background:var(--navy)}
+.team{display:flex;align-items:center;gap:calc(var(--u)*.8);padding:0 calc(var(--u)*1.2);min-width:calc(var(--u)*10.5);
+  color:#fff;font-weight:800;font-size:calc(var(--u)*2.15);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+.team.home{background:var(--azul);box-shadow:inset calc(var(--u)*.5) 0 0 var(--verde);padding-left:calc(var(--u)*1.6)}
+.team.away{background:var(--away,#2B2F36);color:var(--away-ink,#fff);justify-content:flex-end}
+.team .nm{flex:1}
+.team.away .nm{text-align:right}
+.sets{display:grid;place-items:center;min-width:calc(var(--u)*2);height:calc(var(--u)*2.3);padding:0 calc(var(--u)*.4);
+  border-radius:calc(var(--u)*.3);background:rgba(255,255,255,.18);font-size:calc(var(--u)*1.6);font-variant-numeric:tabular-nums}
+.team.away.claro .sets{background:rgba(11,30,51,.14)}
+.score{display:grid;place-items:center;min-width:calc(var(--u)*4.6);padding:0 calc(var(--u)*.9);background:#fff;color:var(--navy);
+  font-weight:800;font-size:calc(var(--u)*3.1);font-variant-numeric:tabular-nums;line-height:1}
+.score.as{border-left:calc(var(--u)*.12) solid #D5DDE8}
+.score.flash{animation:flash 1.1s ease-out}
+@keyframes flash{0%{background:var(--verde);color:#fff}100%{background:#fff;color:var(--navy)}}
+.per{display:grid;place-items:center;padding:0 calc(var(--u)*1.3);background:var(--verde);color:#fff;font-weight:800;
+  font-size:calc(var(--u)*1.75);letter-spacing:.07em;white-space:nowrap;text-transform:uppercase}
+.per.pausa{background:#F0B429;color:var(--navy)}
+.per.fim{background:#3A4656}
+.bug-sub{margin-left:calc(var(--u)*.7);padding:calc(var(--u)*.4) calc(var(--u)*1.1) calc(var(--u)*.45);background:rgba(11,30,51,.9);
+  color:rgba(255,255,255,.9);border-radius:0 0 calc(var(--u)*.45) calc(var(--u)*.45);font-weight:700;font-size:calc(var(--u)*1.2);
+  letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.bug-sub b{color:var(--verde);font-weight:800}
+
+/* ---------- MODO TRANSMISSÃO ---------- */
+body.overlay{background:transparent;overflow:hidden}
+.stage{position:fixed;inset:0;display:flex;padding:calc(var(--u)*2.2) calc(var(--u)*2.6)}
+.stage.tl{align-items:flex-start;justify-content:flex-start}
+.stage.tc{align-items:flex-start;justify-content:center}
+.stage.tr{align-items:flex-start;justify-content:flex-end}
+.stage.bl{align-items:flex-end;justify-content:flex-start}
+.stage.bc{align-items:flex-end;justify-content:center}
+.aviso{font:600 16px Barlow,sans-serif;color:#fff;background:rgba(11,30,51,.9);padding:10px 14px;border-radius:8px}
+
+/* ---------- MODO CONTROLE ---------- */
+.ctl{max-width:560px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:10px}
+.mark{width:40px;height:40px;border-radius:11px;background:var(--azul);display:grid;place-items:center;color:#fff;
+  font:800 22px 'Barlow Condensed',sans-serif;box-shadow:inset 0 -4px 0 var(--verde)}
+.brand h1{white-space:nowrap;font:800 21px/1 'Barlow Condensed',sans-serif;letter-spacing:.02em;text-transform:uppercase}
+.brand p{font-size:13px;color:var(--muted);margin-top:3px}
+.conn{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--card);
+  border:1px solid var(--line);padding:6px 10px;border-radius:99px;white-space:nowrap}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:#B8C2CF}
+.conn.ok .dot{background:var(--verde);box-shadow:0 0 0 3px rgba(69,170,74,.2)}
+.conn.err .dot{background:#D64545}
+
+.preview{position:relative;container-type:inline-size;aspect-ratio:16/9;border-radius:14px;overflow:hidden;margin-bottom:14px;
+  background:radial-gradient(120% 90% at 50% 120%,#2F7D3A 0%,#1E5A2A 45%,#123A1C 100%)}
+.preview::before{content:"";position:absolute;inset:18% 8% -30%;border:2px solid rgba(255,255,255,.35);border-radius:6px}
+.preview::after{content:"";position:absolute;left:50%;top:18%;bottom:0;border-left:2px solid rgba(255,255,255,.35)}
+.preview .slot{position:absolute;left:3.5cqw;top:4.5cqw;--u:1.95cqw;z-index:1}
+.preview .tag{position:absolute;right:10px;bottom:10px;z-index:2;font-size:11.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:#fff;background:rgba(11,30,51,.7);padding:4px 8px;border-radius:6px}
+.preview.off .slot{opacity:.35}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.card h2,.card summary{font:700 13px Barlow,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.card h2{margin-bottom:10px}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-size:20px;line-height:1;color:var(--azul)}
+details[open] summary::after{content:"–"}
+details[open] summary{margin-bottom:12px}
+
+.board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side{border-radius:12px;padding:12px 10px 10px;text-align:center;background:var(--soft)}
+.side.home{background:linear-gradient(180deg,#E3EDF8,#F2F6FB)}
+.side-name{font:800 17px 'Barlow Condensed',sans-serif;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:6px;min-height:22px}
+.side-name i{width:10px;height:10px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+.big{font:800 64px/1 'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums;margin:6px 0 10px;color:var(--navy)}
+.btns{display:grid;gap:6px}
+.btn-plus{height:58px;border-radius:12px;background:var(--azul);color:#fff;font:800 26px 'Barlow Condensed',sans-serif;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
+.side.away .btn-plus{background:var(--navy)}
+.btn-plus:active,.btn-sm:active,.chip:active{transform:scale(.97)}
+.row{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.btn-sm{height:44px;border-radius:10px;background:var(--card);border:1px solid var(--line);font:700 18px 'Barlow Condensed',sans-serif}
+.btn-sm.minus{color:#B42318}
+.sets-ctl{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:6px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:700;color:var(--muted)}
+.sets-ctl b{font:800 22px 'Barlow Condensed',sans-serif;color:var(--ink);min-width:24px}
+.sets-ctl button{width:34px;height:34px;border-radius:8px;background:var(--soft);font:800 18px 'Barlow Condensed',sans-serif}
+
+.actions{display:flex;gap:8px;margin-top:10px}
+.act{flex:1;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:14.5px}
+.act.prim{background:var(--verde);border-color:var(--verde);color:#fff}
+.act:disabled{opacity:.4}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:0 14px;height:42px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:14.5px}
+.chip.on{background:var(--azul);border-color:var(--azul);color:#fff}
+.chip.on.pausa{background:#F0B429;border-color:#F0B429;color:var(--navy)}
+.chip.on.fim{background:#3A4656;border-color:#3A4656}
+
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600}
+.toggle small{display:block;color:var(--muted);font-weight:500;font-size:13px;margin-top:2px}
+.switch{position:relative;width:54px;height:32px;flex:none;border-radius:99px;background:#C5CED9;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--verde)}
+.switch[aria-checked="true"]::after{transform:translateX(22px)}
+
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.field select,.field input[type=text],.field input[type=url]{width:100%;height:46px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:0 12px;font-size:16px;font-weight:600}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--soft);border-radius:10px;padding:3px;gap:3px}
+.seg button{height:40px;border-radius:8px;font-weight:700;font-size:14.5px;color:var(--muted)}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(11,30,51,.12)}
+.swatches{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sw{width:36px;height:36px;border-radius:10px;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.sw.on{border-color:var(--azul);box-shadow:0 0 0 2px #fff inset}
+.sw-pick{position:relative;width:36px;height:36px;border-radius:10px;border:1px dashed var(--muted);display:grid;place-items:center;font-weight:800;color:var(--muted);overflow:hidden}
+.sw-pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+.link{display:flex;gap:8px;margin-bottom:6px}
+.link input{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--soft);padding:0 10px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+.link button{height:44px;padding:0 14px;border-radius:10px;background:var(--azul);color:#fff;font-weight:700;font-size:14px;white-space:nowrap}
+.hint{font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:14px}
+.warn{font-size:13.5px;line-height:1.45;background:#FFF4E5;border:1px solid #F5C77E;color:#7A4A00;border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.danger{width:100%;height:44px;border-radius:10px;border:1px solid #F1C0BB;background:#FFF5F4;color:#B42318;font-weight:700;margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);opacity:0;
+  background:var(--navy);color:#fff;font-weight:600;font-size:14px;padding:10px 16px;border-radius:10px;transition:.25s;pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ============ TRANSMISSÃO ============ -->
+<div class="stage tl" id="stage" hidden><div id="ovBug"></div></div>
+
+<!-- ============ CONTROLE ============ -->
+<main class="ctl" id="ctl" hidden>
+  <header class="top">
+    <div class="brand">
+      <div class="mark">I</div>
+      <div><h1>Placar Insana</h1><p>XXI Intermed CO · controle</p></div>
+    </div>
+    <div class="conn" id="conn"><span class="dot"></span><span id="connTxt">Conectando…</span></div>
+  </header>
+
+  <div class="warn" id="fileWarn" hidden>Este arquivo foi aberto direto do aparelho. Para o PRISM conseguir carregar o placar, ele precisa estar hospedado num site (o da Insana serve). O controle funciona mesmo assim.</div>
+
+  <section class="preview" id="preview" aria-label="Prévia do placar">
+    <div class="slot" id="prevBug"></div>
+    <span class="tag" id="prevTag">Prévia</span>
+  </section>
+
+  <section class="card">
+    <div class="board">
+      <div class="side home">
+        <div class="side-name" id="cHome">INSANA</div>
+        <div class="big" id="cHs">0</div>
+        <div class="btns" data-team="h"></div>
+        <div class="sets-ctl" data-sets="h" hidden><button data-d="-1" aria-label="Tirar set">−</button><span>Sets <b>0</b></span><button data-d="1" aria-label="Somar set">+</button></div>
+      </div>
+      <div class="side away">
+        <div class="side-name"><i id="cAwaySw"></i><span id="cAway">ADVERSÁRIO</span></div>
+        <div class="big" id="cAs">0</div>
+        <div class="btns" data-team="a"></div>
+        <div class="sets-ctl" data-sets="a" hidden><button data-d="-1" aria-label="Tirar set">−</button><span>Sets <b>0</b></span><button data-d="1" aria-label="Somar set">+</button></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="act" id="undo" disabled>↶ Desfazer</button>
+      <button class="act prim" id="closeSet" hidden>Fechar set</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Período</h2>
+    <div class="chips" id="perChips"></div>
+  </section>
+
+  <section class="card">
+    <div class="toggle">
+      <div>Mostrar placar na transmissão<small>Desligue para esconder durante entrevistas ou replays</small></div>
+      <button class="switch" id="showSw" role="switch" aria-checked="true" aria-label="Mostrar placar"></button>
+    </div>
+  </section>
+
+  <details class="card" id="setup">
+    <summary>Configurar jogo</summary>
+    <label class="field"><span>Modalidade</span><select id="fMod"></select></label>
+    <div class="field"><span>Naipe</span><div class="seg" id="fNaipe"><button data-v="M">Masculino</button><button data-v="F">Feminino</button></div></div>
+    <label class="field"><span>Fase</span><select id="fFase">
+      <option value="">Sem fase</option><option>Oitavas de final</option><option>Quartas de final</option>
+      <option>Semifinal</option><option>Disputa de 3º lugar</option><option>Final</option><option>Amistoso</option>
+    </select></label>
+    <label class="field"><span>Adversário</span><select id="fAway"></select></label>
+    <label class="field" id="fAwayOtherWrap" hidden><span>Nome do adversário</span><input type="text" id="fAwayOther" maxlength="14" placeholder="Ex.: ATLÉTICA X" autocomplete="off"></label>
+    <div class="field"><span>Cor do adversário</span><div class="swatches" id="fColor"></div></div>
+  </details>
+
+  <details class="card" id="linksCard">
+    <summary>Links e transmissão</summary>
+    <p class="hint">No PRISM: <b>My Studio → Widget → Web Page</b>, cole o link do placar e estique o widget na tela inteira. O fundo é transparente.</p>
+    <div class="field"><span>Link do placar (para o PRISM)</span>
+      <div class="link"><input id="ovLink" readonly><button data-copy="ovLink">Copiar</button></div></div>
+    <div class="grid2">
+      <label class="field"><span>Posição</span><select id="fPos">
+        <option value="tl">Topo · esquerda</option><option value="tc">Topo · centro</option><option value="tr">Topo · direita</option>
+        <option value="bl">Base · esquerda</option><option value="bc">Base · centro</option></select></label>
+      <label class="field"><span>Tamanho</span><select id="fEsc">
+        <option value="0.8">Pequeno</option><option value="1" selected>Médio</option><option value="1.2">Grande</option><option value="1.4">Extra</option></select></label>
+    </div>
+    <div class="field"><span>Link do controle (para outra pessoa operar)</span>
+      <div class="link"><input id="ctlLink" readonly><button data-copy="ctlLink">Copiar</button></div></div>
+    <p class="hint">Quem tiver o link do controle consegue mexer no placar — compartilhe só com quem vai operar.</p>
+    <button class="danger" id="reset">Zerar jogo</button>
+    <button class="danger" id="newRoom" style="margin-top:8px">Gerar links novos</button>
+  </details>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- configuração ---------- */
+const RELAY = 'https://ntfy.sh/';          // retransmissor público e gratuito (sem conta)
+const MODS = {
+  handebol: { nome:'Handebol', inc:[1], per:[['PRE','Pré-jogo'],['1T','1º tempo'],['INT','Intervalo'],['2T','2º tempo'],['PRO','Prorrogação'],['PEN','Tiros de 7 m'],['FIM','Encerrado']] },
+  futsal:   { nome:'Futsal', inc:[1], per:[['PRE','Pré-jogo'],['1T','1º tempo'],['INT','Intervalo'],['2T','2º tempo'],['PRO','Prorrogação'],['PEN','Pênaltis'],['FIM','Encerrado']] },
+  society:  { nome:'Futebol society', inc:[1], per:[['PRE','Pré-jogo'],['1T','1º tempo'],['INT','Intervalo'],['2T','2º tempo'],['PRO','Prorrogação'],['PEN','Pênaltis'],['FIM','Encerrado']] },
+  basquete: { nome:'Basquete', inc:[1,2,3], per:[['PRE','Pré-jogo'],['1Q','1º quarto'],['2Q','2º quarto'],['INT','Intervalo'],['3Q','3º quarto'],['4Q','4º quarto'],['PRO','Prorrogação'],['FIM','Encerrado']] },
+  volei:    { nome:'Vôlei', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['S4','4º set'],['S5','5º set'],['FIM','Encerrado']] }
+};
+const RIVAIS = ['Lendária','Pirraça','Madrasta','Magnata','Tormenta','AAAESCS','Unieva','Carrasca','UNIC','Isquemia','PUC'];
+const CORES = ['#2B2F36','#B3261E','#E8590C','#F2C200','#7B2CBF','#C2185B','#0B7A75','#5E3A1E','#111111','#FFFFFF'];
+const PAUSA = new Set(['PRE','INT']);
+const OV_LABEL = { PRE:'Pré-jogo', FIM:'Fim de jogo' };
+
+/* ---------- utilidades ---------- */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch {} };
+const clampN = (n,max=999) => Math.max(0, Math.min(max, Math.round(Number(n)) || 0));
+const clip = (s,n) => String(s ?? '').replace(/[\u0000-\u001f]/g,'').trim().slice(0,n);
+const okColor = c => /^#[0-9a-f]{6}$/i.test(c) ? c : '#2B2F36';
+const SRC = Math.random().toString(36).slice(2,10);
+const novaSala = () => 'insana-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b % 36).toString(36)).join('');
+const okSala = s => /^[A-Za-z0-9_-]{6,64}$/.test(s || '') ? s : '';
+
+function lum(hex){
+  const c = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)/255).map(v => v <= .03928 ? v/12.92 : ((v+.055)/1.055)**2.4);
+  return .2126*c[0] + .7152*c[1] + .0722*c[2];
+}
+
+const PADRAO = { v:1, t:0, src:'', mod:'handebol', naipe:'M', fase:'', home:'INSANA', away:'LENDÁRIA', awayColor:'#2B2F36',
+  hs:0, as:0, hsets:0, asets:0, per:'PRE', show:true };
+
+function sanitize(x){
+  if (!x || typeof x !== 'object') return null;
+  const s = { ...PADRAO };
+  s.t = Number(x.t) || 0; s.src = clip(x.src,16);
+  s.mod = MODS[x.mod] ? x.mod : PADRAO.mod;
+  s.naipe = x.naipe === 'F' ? 'F' : 'M';
+  s.fase = clip(x.fase,24);
+  s.home = clip(x.home,14) || 'INSANA';
+  s.away = clip(x.away,14) || 'ADVERSÁRIO';
+  s.awayColor = okColor(x.awayColor);
+  s.hs = clampN(x.hs); s.as = clampN(x.as);
+  s.hsets = clampN(x.hsets,9); s.asets = clampN(x.asets,9);
+  s.per = MODS[s.mod].per.some(p => p[0] === x.per) ? x.per : MODS[s.mod].per[0][0];
+  s.show = x.show !== false;
+  return s;
+}
+const perLabel = s => (MODS[s.mod].per.find(p => p[0] === s.per) || ['',''])[1];
+
+/* ---------- componente do placar ---------- */
+function makeBug(root){
+  root.innerHTML =
+    '<div class="bug"><div class="bug-row">' +
+      '<div class="team home"><span class="nm"></span><span class="sets"></span></div>' +
+      '<div class="score hs"></div><div class="score as"></div>' +
+      '<div class="team away"><span class="sets"></span><span class="nm"></span></div>' +
+      '<div class="per"></div>' +
+    '</div><div class="bug-sub"><b>Intermed CO</b><span></span></div></div>';
+  const q = s => root.querySelector(s);
+  return { bug:q('.bug'), hn:q('.home .nm'), hsets:q('.home .sets'), hs:q('.score.hs'), as:q('.score.as'),
+    away:q('.team.away'), an:q('.away .nm'), asets:q('.away .sets'), per:q('.per'), sub:q('.bug-sub span'), last:{} };
+}
+function flash(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function paintBug(r, s, { hideWhenOff = true } = {}){
+  const vol = !!MODS[s.mod].sets;
+  r.hn.textContent = s.home; r.an.textContent = s.away;
+  if (r.last.hs !== undefined && r.last.hs !== s.hs) flash(r.hs);
+  if (r.last.as !== undefined && r.last.as !== s.as) flash(r.as);
+  r.hs.textContent = s.hs; r.as.textContent = s.as;
+  r.hsets.hidden = r.asets.hidden = !vol;
+  r.hsets.textContent = s.hsets; r.asets.textContent = s.asets;
+  r.away.style.setProperty('--away', s.awayColor);
+  const claro = lum(s.awayColor) > .55;
+  r.away.style.setProperty('--away-ink', claro ? '#0B1E33' : '#FFFFFF');
+  r.away.classList.toggle('claro', claro);
+  r.per.textContent = OV_LABEL[s.per] || perLabel(s);
+  r.per.className = 'per' + (PAUSA.has(s.per) ? ' pausa' : s.per === 'FIM' ? ' fim' : '');
+  const partes = [MODS[s.mod].nome + ' ' + (s.naipe === 'F' ? 'Feminino' : 'Masculino')];
+  if (s.fase) partes.push(s.fase);
+  r.sub.textContent = ' · ' + partes.join(' · ');
+  if (hideWhenOff) r.bug.classList.toggle('oculto', !s.show);
+  r.last = { hs:s.hs, as:s.as };
+}
+
+/* ---------- estado e sincronização ---------- */
+const params = new URLSearchParams(location.search);
+const MODE = params.get('modo') === 'placar' ? 'overlay' : 'controle';
+let sala = okSala(params.get('sala'));
+if (!sala && MODE === 'controle') sala = okSala(lsGet('placar-insana:sala')) || novaSala();
+const KEY = () => 'placar-insana:estado:' + sala;
+
+let state = sanitize(JSON.parse(lsGet(KEY()) || 'null')) || { ...PADRAO };
+let lastServerTime = 0;
+let bc = null;
+const listeners = [];
+const onState = fn => listeners.push(fn);
+const emit = () => listeners.forEach(fn => fn(state));
+
+function take(incoming, serverTime){
+  const s = sanitize(incoming);
+  if (!s) return;
+  if (MODE === 'controle' && s.src === SRC) return;
+  if (serverTime && serverTime < lastServerTime) return;
+  if (serverTime) lastServerTime = serverTime;
+  state = s; lsSet(KEY(), JSON.stringify(state)); emit();
+}
+
+let connState = 'wait';
+const setConn = c => { connState = c; listeners.forEach(fn => fn(state, 'conn')); };
+
+async function pollLatest(){
+  if (!sala) return;
+  try {
+    const r = await fetch(RELAY + sala + '/json?poll=1&since=latest', { cache:'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const lines = (await r.text()).trim().split('\n').filter(Boolean);
+    for (const ln of lines){
+      const m = JSON.parse(ln);
+      if (m.event === 'message' && m.message){
+        const inc = JSON.parse(m.message);
+        if (MODE === 'controle' && Number(inc.t) <= state.t) { lastServerTime = Math.max(lastServerTime, m.time||0); continue; }
+        take(inc, m.time);
+      }
+    }
+    if (connState !== 'ok' && !es) setConn('ok');
+  } catch { /* segue tentando */ }
+}
+
+let es = null;
+function subscribe(){
+  if (!sala || !('EventSource' in window)) return;
+  es = new EventSource(RELAY + sala + '/sse');
+  es.onopen = () => setConn('ok');
+  es.onerror = () => setConn(es.readyState === 2 ? 'err' : 'wait');
+  es.onmessage = e => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.event === 'message' && m.message) take(JSON.parse(m.message), m.time);
+    } catch {}
+  };
+}
+
+function openLocal(){
+  try {
+    bc = new BroadcastChannel('placar-insana-' + sala);
+    bc.onmessage = e => take(e.data);
+  } catch {}
+  addEventListener('storage', e => { if (e.key === KEY() && e.newValue) { try { take(JSON.parse(e.newValue)); } catch {} } });
+}
+
+let pubTimer = null, pubRetry = null;
+function schedulePublish(){ clearTimeout(pubTimer); pubTimer = setTimeout(publishNow, 250); }
+async function publishNow(){
+  clearTimeout(pubRetry);
+  try {
+    const r = await fetch(RELAY + sala, { method:'POST', body: JSON.stringify(state) });
+    if (!r.ok) throw new Error(r.status);
+    setConn('ok');
+  } catch {
+    setConn('err');
+    pubRetry = setTimeout(publishNow, 3000);
+  }
+}
+
+const historico = [];
+function commit(mut, { undoable = true } = {}){
+  if (undoable){ historico.push(JSON.stringify(state)); if (historico.length > 30) historico.shift(); }
+  const next = JSON.parse(JSON.stringify(state));
+  mut(next);
+  next.t = Math.max(Date.now(), state.t + 1); next.src = SRC;
+  state = sanitize(next);
+  lsSet(KEY(), JSON.stringify(state));
+  try { bc && bc.postMessage(state); } catch {}
+  emit(); schedulePublish();
+  if (navigator.vibrate) navigator.vibrate(12);
+}
+
+/* ================= MODO TRANSMISSÃO ================= */
+function startOverlay(){
+  document.body.classList.add('overlay');
+  const stage = $('#stage'); stage.hidden = false;
+  const pos = ['tl','tc','tr','bl','bc'].includes(params.get('pos')) ? params.get('pos') : 'tl';
+  stage.className = 'stage ' + pos;
+  const k = Math.max(.5, Math.min(2.5, parseFloat(params.get('escala')) || 1));
+  document.documentElement.style.setProperty('--k', k);
+  if (!sala){ $('#ovBug').innerHTML = '<div class="aviso">Abra o placar pelo link gerado na tela de controle.</div>'; return; }
+  const r = makeBug($('#ovBug'));
+  onState((s, kind) => { if (kind !== 'conn') paintBug(r, s); });
+  paintBug(r, state);
+  openLocal(); pollLatest(); subscribe();
+  setInterval(pollLatest, 20000);
+}
+
+/* ================= MODO CONTROLE ================= */
+function startControle(){
+  $('#ctl').hidden = false;
+  lsSet('placar-insana:sala', sala);
+  if (params.get('sala') !== sala){
+    params.set('sala', sala); params.delete('modo');
+    history.replaceState(null, '', location.pathname + '?' + params.toString());
+  }
+  if (location.protocol === 'file:') $('#fileWarn').hidden = false;
+
+  const prev = makeBug($('#prevBug'));
+
+  // modalidade
+  $('#fMod').innerHTML = Object.entries(MODS).map(([k,m]) => `<option value="${k}">${m.nome}</option>`).join('');
+  // adversários
+  $('#fAway').innerHTML = RIVAIS.map(n => `<option value="${n.toUpperCase()}">${n}</option>`).join('') + '<option value="__OUTRA">Outra…</option>';
+  // cores
+  $('#fColor').innerHTML = CORES.map(c => `<button class="sw" data-c="${c}" style="background:${c}" aria-label="Cor ${c}"></button>`).join('') +
+    '<label class="sw-pick" aria-label="Escolher outra cor">+<input type="color" id="fColorPick" value="#2B2F36"></label>';
+
+  function buildScoreButtons(){
+    const inc = MODS[state.mod].inc;
+    $$('.btns').forEach(box => {
+      const t = box.dataset.team;
+      const extras = inc.length > 1 ? `<div class="row">${inc.slice(1).map(d => `<button class="btn-sm" data-team="${t}" data-d="${d}">+${d}</button>`).join('')}</div>` : '';
+      box.innerHTML = `<button class="btn-plus" data-team="${t}" data-d="1">+1</button>${extras}` +
+        `<div class="row"><button class="btn-sm minus" data-team="${t}" data-d="-1">−1</button></div>`;
+    });
+  }
+  function buildChips(){
+    $('#perChips').innerHTML = MODS[state.mod].per.map(([k,l]) =>
+      `<button class="chip${PAUSA.has(k) ? ' pausa' : k === 'FIM' ? ' fim' : ''}" data-per="${k}">${l}</button>`).join('');
+  }
+  let builtFor = '';
+
+  function render(s, kind){
+    const c = $('#conn'); c.className = 'conn ' + connState;
+    $('#connTxt').textContent = connState === 'ok' ? 'Ao vivo' : connState === 'err' ? 'Sem conexão' : 'Conectando…';
+    if (kind === 'conn') return;
+    if (builtFor !== s.mod){ buildScoreButtons(); buildChips(); builtFor = s.mod; }
+    paintBug(prev, s, { hideWhenOff:false });
+    $('#preview').classList.toggle('off', !s.show);
+    $('#prevTag').textContent = s.show ? 'Prévia' : 'Oculto na transmissão';
+    $('#cHome').textContent = s.home; $('#cAway').textContent = s.away;
+    $('#cAwaySw').style.background = s.awayColor;
+    $('#cHs').textContent = s.hs; $('#cAs').textContent = s.as;
+    const vol = !!MODS[s.mod].sets;
+    $$('.sets-ctl').forEach(el => { el.hidden = !vol; el.querySelector('b').textContent = el.dataset.sets === 'h' ? s.hsets : s.asets; });
+    $('#closeSet').hidden = !vol;
+    $$('#perChips .chip').forEach(b => b.classList.toggle('on', b.dataset.per === s.per));
+    $('#showSw').setAttribute('aria-checked', String(s.show));
+    $('#fMod').value = s.mod;
+    $$('#fNaipe button').forEach(b => b.classList.toggle('on', b.dataset.v === s.naipe));
+    $('#fFase').value = s.fase;
+    const conhecido = RIVAIS.some(n => n.toUpperCase() === s.away);
+    $('#fAway').value = conhecido ? s.away : '__OUTRA';
+    $('#fAwayOtherWrap').hidden = conhecido;
+    if (!conhecido && document.activeElement !== $('#fAwayOther')) $('#fAwayOther').value = s.away;
+    $$('#fColor .sw').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === s.awayColor.toLowerCase()));
+    $('#undo').disabled = historico.length === 0;
+  }
+  onState(render);
+
+  // placar
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-team][data-d]');
+    if (!b) return;
+    const d = Number(b.dataset.d), key = b.dataset.team === 'h' ? 'hs' : 'as';
+    if (d < 0 && state[key] === 0) return;
+    commit(n => { n[key] = Math.max(0, n[key] + d); });
+  });
+  $$('.sets-ctl button').forEach(b => b.addEventListener('click', () => {
+    const key = b.closest('.sets-ctl').dataset.sets === 'h' ? 'hsets' : 'asets';
+    const d = Number(b.dataset.d);
+    if (d < 0 && state[key] === 0) return;
+    commit(n => { n[key] = Math.max(0, n[key] + d); });
+  }));
+  $('#closeSet').addEventListener('click', () => {
+    if (state.hs === state.as){ toast('Set empatado — ajuste o placar antes de fechar'); return; }
+    const venc = state.hs > state.as ? state.home : state.away;
+    if (!confirm(`Fechar set ${state.hs} × ${state.as} para ${venc}?`)) return;
+    commit(n => {
+      if (n.hs > n.as) n.hsets++; else n.asets++;
+      n.hs = 0; n.as = 0;
+      const m = /^S(\d)$/.exec(n.per);
+      n.per = m && Number(m[1]) < 5 ? 'S' + (Number(m[1]) + 1) : n.per;
+    });
+  });
+  $('#undo').addEventListener('click', () => {
+    const prevS = historico.pop(); if (!prevS) return;
+    const p = sanitize(JSON.parse(prevS));
+    commit(n => Object.assign(n, p), { undoable:false });
+  });
+
+  // período e visibilidade
+  $('#perChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-per]'); if (!b || b.dataset.per === state.per) return;
+    commit(n => { n.per = b.dataset.per; });
+  });
+  $('#showSw').addEventListener('click', () => commit(n => { n.show = !n.show; }));
+
+  // configuração
+  $('#fMod').addEventListener('change', e => {
+    const temPlacar = state.hs || state.as || state.hsets || state.asets;
+    if (temPlacar && !confirm('Trocar a modalidade zera o placar. Continuar?')){ e.target.value = state.mod; return; }
+    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = 0; n.per = 'PRE'; });
+  });
+  $('#fNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b) commit(n => { n.naipe = b.dataset.v; }); });
+  $('#fFase').addEventListener('change', e => commit(n => { n.fase = e.target.value; }));
+  $('#fAway').addEventListener('change', e => {
+    if (e.target.value === '__OUTRA'){ $('#fAwayOtherWrap').hidden = false; $('#fAwayOther').value = ''; $('#fAwayOther').focus(); return; }
+    commit(n => { n.away = e.target.value; });
+  });
+  $('#fAwayOther').addEventListener('input', e => {
+    const v = clip(e.target.value, 14).toUpperCase(); if (v) commit(n => { n.away = v; }, { undoable:false });
+  });
+  $('#fColor').addEventListener('click', e => { const b = e.target.closest('.sw'); if (b) commit(n => { n.awayColor = b.dataset.c; }); });
+  $('#fColorPick').addEventListener('input', e => commit(n => { n.awayColor = e.target.value; }, { undoable:false }));
+
+  // links
+  const base = location.origin + location.pathname;
+  function updateLinks(){
+    const ov = new URLSearchParams({ modo:'placar', sala });
+    if ($('#fPos').value !== 'tl') ov.set('pos', $('#fPos').value);
+    if ($('#fEsc').value !== '1') ov.set('escala', $('#fEsc').value);
+    $('#ovLink').value = base + '?' + ov.toString();
+    $('#ctlLink').value = base + '?sala=' + sala;
+    lsSet('placar-insana:ov', JSON.stringify({ pos:$('#fPos').value, esc:$('#fEsc').value }));
+  }
+  try { const o = JSON.parse(lsGet('placar-insana:ov') || '{}'); if (o.pos) $('#fPos').value = o.pos; if (o.esc) $('#fEsc').value = o.esc; } catch {}
+  $('#fPos').addEventListener('change', updateLinks); $('#fEsc').addEventListener('change', updateLinks);
+  updateLinks();
+  $$('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+    const inp = $('#' + b.dataset.copy);
+    try { await navigator.clipboard.writeText(inp.value); } catch { inp.select(); document.execCommand('copy'); }
+    toast('Link copiado');
+  }));
+  $('#reset').addEventListener('click', () => {
+    if (!confirm('Zerar placar, sets e voltar para pré-jogo?')) return;
+    commit(n => { n.hs = n.as = n.hsets = n.asets = 0; n.per = 'PRE'; n.show = true; });
+  });
+  $('#newRoom').addEventListener('click', () => {
+    if (!confirm('Gerar links novos? O link antigo no PRISM para de funcionar e você terá que colar o novo.')) return;
+    lsSet('placar-insana:sala', novaSala());
+    location.href = location.pathname;
+  });
+
+  // tela sempre acesa enquanto controla
+  let lock = null;
+  const keepAwake = async () => { try { if (!lock && navigator.wakeLock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch {} };
+  document.addEventListener('pointerdown', keepAwake, { passive:true });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+
+  render(state);
+  openLocal(); subscribe();
+  // confere o último estado salvo no retransmissor e republica para o placar já abrir certo
+  pollLatest().then(() => { if (state.t) schedulePublish(); });
+}
+
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
+
+MODE === 'overlay' ? startOverlay() : startControle();
+})();
+</script>
+</body>
+</html>
