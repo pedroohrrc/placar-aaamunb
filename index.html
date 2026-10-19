@@ -74,6 +74,7 @@ body.overlay{background:transparent;overflow:hidden}
 .conn .dot{width:8px;height:8px;border-radius:50%;background:#B8C2CF}
 .conn.ok .dot{background:var(--verde);box-shadow:0 0 0 3px rgba(69,170,74,.2)}
 .conn.err .dot{background:#D64545}
+.conn.poll .dot{background:#F0B429}
 
 .preview{position:relative;container-type:inline-size;aspect-ratio:16/9;border-radius:14px;overflow:hidden;margin-bottom:14px;
   background:radial-gradient(120% 90% at 50% 120%,#2F7D3A 0%,#1E5A2A 45%,#123A1C 100%)}
@@ -341,53 +342,106 @@ const KEY = () => 'placar-insana:estado:' + sala;
 
 let state = sanitize(JSON.parse(lsGet(KEY()) || 'null')) || { ...PADRAO };
 let lastServerTime = 0;
+let lastMsgId = '';
 let bc = null;
 const listeners = [];
 const onState = fn => listeners.push(fn);
 const emit = () => listeners.forEach(fn => fn(state));
 
+/* diagnóstico: cada aparelho manda um resumo curto para <sala>-diag */
+const diag = { modo: MODE, ua: navigator.userAgent.slice(0, 180), ws: '-', sse: '-', pollOk: 0, pollErr: '', rx: 0, pubOk: 0, pubErr: '' };
+let diagSent = 0;
+function sendDiag(){
+  if (!sala || diagSent >= 3) return;
+  diagSent++;
+  fetch(RELAY + sala + '-diag', { method: 'POST', body: JSON.stringify({ ...diag, live: liveVia, t: new Date().toISOString() }) }).catch(() => {});
+}
+
 function take(incoming, serverTime){
   const s = sanitize(incoming);
   if (!s) return;
-  if (MODE === 'controle' && s.src === SRC) return;
   if (serverTime && serverTime < lastServerTime) return;
   if (serverTime) lastServerTime = serverTime;
+  if (MODE === 'controle' && s.src === SRC) return;
   state = s; lsSet(KEY(), JSON.stringify(state)); emit();
 }
-
-let connState = 'wait';
-const setConn = c => { connState = c; listeners.forEach(fn => fn(state, 'conn')); };
-
-async function pollLatest(){
-  if (!sala) return;
-  try {
-    const r = await fetch(RELAY + sala + '/json?poll=1&since=latest', { cache:'no-store' });
-    if (!r.ok) throw new Error(r.status);
-    const lines = (await r.text()).trim().split('\n').filter(Boolean);
-    for (const ln of lines){
-      const m = JSON.parse(ln);
-      if (m.event === 'message' && m.message){
-        const inc = JSON.parse(m.message);
-        if (MODE === 'controle' && Number(inc.t) <= state.t) { lastServerTime = Math.max(lastServerTime, m.time||0); continue; }
-        take(inc, m.time);
-      }
-    }
-    if (connState !== 'ok' && !es) setConn('ok');
-  } catch { /* segue tentando */ }
+function handleMsg(m){
+  if (!m || m.event !== 'message' || !m.message) return;
+  if (m.id && m.id === lastMsgId) return;
+  if (m.id) lastMsgId = m.id;
+  let inc; try { inc = JSON.parse(m.message); } catch { return; }
+  diag.rx++;
+  take(inc, m.time);
 }
 
-let es = null;
-function subscribe(){
-  if (!sala || !('EventSource' in window)) return;
-  es = new EventSource(RELAY + sala + '/sse');
-  es.onopen = () => setConn('ok');
-  es.onerror = () => setConn(es.readyState === 2 ? 'err' : 'wait');
-  es.onmessage = e => {
-    try {
-      const m = JSON.parse(e.data);
-      if (m.event === 'message' && m.message) take(JSON.parse(m.message), m.time);
-    } catch {}
+/* estado da conexão: ok = tempo real, poll = atualizando a cada poucos segundos, err = sem conexão */
+let connState = 'wait';
+let liveVia = '';
+let pollWorks = false;
+function refreshConn(){
+  const c = liveVia ? 'ok' : pollWorks ? 'poll' : connState === 'wait' ? 'wait' : 'err';
+  if (c !== connState){ connState = c; listeners.forEach(fn => fn(state, 'conn')); }
+}
+function failConn(){ if (!liveVia && !pollWorks){ connState = 'err'; listeners.forEach(fn => fn(state, 'conn')); } else refreshConn(); }
+
+async function pollLatest(){
+  if (!sala) return false;
+  try {
+    const r = await fetch(RELAY + sala + '/json?poll=1&since=latest&_=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const lines = (await r.text()).trim().split('\n').filter(Boolean);
+    for (const ln of lines){ try { handleMsg(JSON.parse(ln)); } catch {} }
+    diag.pollOk++; pollWorks = true; refreshConn();
+    return true;
+  } catch (e) {
+    diag.pollErr = String(e && e.message || e).slice(0, 60);
+    pollWorks = false; failConn();
+    return false;
+  }
+}
+
+/* tempo real: WebSocket primeiro; se não abrir, Server-Sent Events */
+let ws = null, es = null, wsFails = 0, wsTimer = null;
+function connectWS(){
+  if (!sala || !('WebSocket' in window) || wsFails >= 2){ connectSSE(); return; }
+  try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + sala + '/ws'); } catch { wsFails = 9; connectSSE(); return; }
+  let opened = false;
+  const guard = setTimeout(() => { if (!opened){ try { ws.close(); } catch {} } }, 5000);
+  ws.onopen = () => { opened = true; clearTimeout(guard); wsFails = 0; diag.ws = 'aberto'; liveVia = 'ws'; refreshConn(); pollLatest(); };
+  ws.onmessage = e => { try { handleMsg(JSON.parse(e.data)); } catch {} };
+  ws.onclose = () => {
+    clearTimeout(guard);
+    if (!opened){ wsFails++; diag.ws = 'falhou x' + wsFails; } else diag.ws = 'caiu';
+    if (liveVia === 'ws') liveVia = '';
+    refreshConn();
+    clearTimeout(wsTimer);
+    if (!opened && wsFails >= 2){ connectSSE(); return; }
+    wsTimer = setTimeout(connectWS, opened ? 1500 : 2000);
   };
+  ws.onerror = () => {};
+}
+function connectSSE(){
+  if (es || !('EventSource' in window)){ diag.sse = es ? diag.sse : 'sem suporte'; return; }
+  es = new EventSource(RELAY + sala + '/sse');
+  es.onopen = () => { diag.sse = 'aberto'; liveVia = 'sse'; refreshConn(); pollLatest(); };
+  es.onerror = () => { diag.sse = es.readyState === 2 ? 'fechado' : 'reconectando'; if (liveVia === 'sse') liveVia = ''; refreshConn();
+    if (es.readyState === 2){ es = null; setTimeout(connectSSE, 5000); } };
+  es.onmessage = e => { try { handleMsg(JSON.parse(e.data)); } catch {} };
+}
+
+/* rede de segurança: busca o último estado a cada 6 s sem tempo real, a cada 30 s com */
+function pollLoop(){ pollLatest().finally(() => setTimeout(pollLoop, liveVia ? 30000 : 6000)); }
+
+function startSync(){
+  connectWS();
+  setTimeout(pollLoop, 6000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    pollLatest();
+    if (!liveVia && ws && ws.readyState > 1){ clearTimeout(wsTimer); connectWS(); }
+  });
+  setTimeout(sendDiag, 12000);
+  setTimeout(sendDiag, 90000);
 }
 
 function openLocal(){
@@ -403,11 +457,12 @@ function schedulePublish(){ clearTimeout(pubTimer); pubTimer = setTimeout(publis
 async function publishNow(){
   clearTimeout(pubRetry);
   try {
-    const r = await fetch(RELAY + sala, { method:'POST', body: JSON.stringify(state) });
-    if (!r.ok) throw new Error(r.status);
-    setConn('ok');
-  } catch {
-    setConn('err');
+    const r = await fetch(RELAY + sala, { method: 'POST', body: JSON.stringify(state) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    diag.pubOk++; pollWorks = true; refreshConn();
+  } catch (e) {
+    diag.pubErr = String(e && e.message || e).slice(0, 60);
+    connState = 'err'; listeners.forEach(fn => fn(state, 'conn'));
     pubRetry = setTimeout(publishNow, 3000);
   }
 }
@@ -437,8 +492,12 @@ function startOverlay(){
   const r = makeBug($('#ovBug'));
   onState((s, kind) => { if (kind !== 'conn') paintBug(r, s); });
   paintBug(r, state);
-  openLocal(); pollLatest(); subscribe();
-  setInterval(pollLatest, 20000);
+  if (params.get('debug') === '1'){
+    const d = document.createElement('div'); d.className = 'aviso'; d.style.cssText = 'position:fixed;left:8px;bottom:8px;font-size:13px';
+    document.body.appendChild(d);
+    setInterval(() => { d.textContent = `conexão: ${liveVia || (pollWorks ? 'busca a cada 6 s' : 'sem conexão')} · recebidas: ${diag.rx} · ws: ${diag.ws} · sse: ${diag.sse}`; }, 1000);
+  }
+  openLocal(); pollLatest(); startSync();
 }
 
 /* ================= MODO CONTROLE ================= */
@@ -478,7 +537,7 @@ function startControle(){
 
   function render(s, kind){
     const c = $('#conn'); c.className = 'conn ' + connState;
-    $('#connTxt').textContent = connState === 'ok' ? 'Ao vivo' : connState === 'err' ? 'Sem conexão' : 'Conectando…';
+    $('#connTxt').textContent = connState === 'ok' ? 'Ao vivo' : connState === 'poll' ? 'Conectado (lento)' : connState === 'err' ? 'Sem conexão' : 'Conectando…';
     if (kind === 'conn') return;
     if (builtFor !== s.mod){ buildScoreButtons(); buildChips(); builtFor = s.mod; }
     paintBug(prev, s, { hideWhenOff:false });
@@ -595,9 +654,7 @@ function startControle(){
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
 
   render(state);
-  openLocal(); subscribe();
-  // confere o último estado salvo no retransmissor e republica para o placar já abrir certo
-  pollLatest().then(() => { if (state.t) schedulePublish(); });
+  openLocal(); pollLatest(); startSync();
 }
 
 let toastT;
