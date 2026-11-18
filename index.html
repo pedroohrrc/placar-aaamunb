@@ -110,6 +110,7 @@ details[open] summary{margin-bottom:12px}
 .sets-ctl{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:6px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:700;color:var(--muted)}
 .sets-ctl b{font:800 22px 'Barlow Condensed',sans-serif;color:var(--ink);min-width:24px}
 .sets-ctl button{width:34px;height:34px;border-radius:8px;background:var(--soft);font:800 18px 'Barlow Condensed',sans-serif}
+.cnts:empty{display:none}
 
 .actions{display:flex;gap:8px;margin-top:10px}
 .act{flex:1;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:14.5px}
@@ -181,19 +182,21 @@ details[open] summary{margin-bottom:12px}
         <div class="side-name" id="cHome">INSANA</div>
         <div class="big" id="cHs">0</div>
         <div class="btns" data-team="h"></div>
-        <div class="sets-ctl" data-sets="h" hidden><button data-d="-1" aria-label="Tirar set">−</button><span>Sets <b>0</b></span><button data-d="1" aria-label="Somar set">+</button></div>
+        <div class="cnts" data-side="h"></div>
       </div>
       <div class="side away">
         <div class="side-name"><i id="cAwaySw"></i><span id="cAway">ADVERSÁRIO</span></div>
         <div class="big" id="cAs">0</div>
         <div class="btns" data-team="a"></div>
-        <div class="sets-ctl" data-sets="a" hidden><button data-d="-1" aria-label="Tirar set">−</button><span>Sets <b>0</b></span><button data-d="1" aria-label="Somar set">+</button></div>
+        <div class="cnts" data-side="a"></div>
       </div>
     </div>
     <div class="actions">
       <button class="act" id="undo" disabled>↶ Desfazer</button>
       <button class="act prim" id="closeSet" hidden>Fechar set</button>
     </div>
+    <div class="field" id="tbWrap" hidden style="margin:12px 0 0"><span>Contagem do game</span>
+      <div class="seg" id="tbSeg"><button data-tb="0">Normal</button><button data-tb="7">Tie-break (7)</button><button data-tb="10">Super TB (10)</button></div></div>
   </section>
 
   <section class="card">
@@ -253,7 +256,11 @@ const MODS = {
   futsal:   { nome:'Futsal', inc:[1], per:[['PRE','Pré-jogo'],['1T','1º tempo'],['INT','Intervalo'],['2T','2º tempo'],['PRO','Prorrogação'],['PEN','Pênaltis'],['FIM','Encerrado']] },
   society:  { nome:'Futebol society', inc:[1], per:[['PRE','Pré-jogo'],['1T','1º tempo'],['INT','Intervalo'],['2T','2º tempo'],['PRO','Prorrogação'],['PEN','Pênaltis'],['FIM','Encerrado']] },
   basquete: { nome:'Basquete', inc:[1,2,3], per:[['PRE','Pré-jogo'],['1Q','1º quarto'],['2Q','2º quarto'],['INT','Intervalo'],['3Q','3º quarto'],['4Q','4º quarto'],['PRO','Prorrogação'],['FIM','Encerrado']] },
-  volei:    { nome:'Vôlei', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['S4','4º set'],['S5','5º set'],['FIM','Encerrado']] }
+  volei:    { nome:'Vôlei', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['S4','4º set'],['S5','5º set'],['FIM','Encerrado']] },
+  tenis:    { nome:'Tênis de campo', inc:[1], sets:true, tenis:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['FIM','Encerrado']] },
+  mesa:     { nome:'Tênis de mesa', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['S4','4º set'],['S5','5º set'],['FIM','Encerrado']] },
+  sinuca:   { nome:'Sinuca', inc:[1], partidas:true, per:[['PRE','Pré-jogo'],['P1','1ª partida'],['P2','2ª partida'],['P3','3ª partida'],['P4','4ª partida'],['P5','5ª partida'],['P6','6ª partida'],['P7','7ª partida'],['FIM','Encerrado']] },
+  peteca:   { nome:'Peteca', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['FIM','Encerrado']] }
 };
 const RIVAIS = ['Lendária','Pirraça','Madrasta','Magnata','Tormenta','AAAESCS','Unieva','Carrasca','UNIC','Isquemia','PUC'];
 const CORES = ['#2B2F36','#B3261E','#E8590C','#F2C200','#7B2CBF','#C2185B','#0B7A75','#5E3A1E','#111111','#FFFFFF'];
@@ -278,7 +285,7 @@ function lum(hex){
 }
 
 const PADRAO = { v:1, t:0, src:'', mod:'handebol', naipe:'M', fase:'', home:'INSANA', away:'LENDÁRIA', awayColor:'#2B2F36',
-  hs:0, as:0, hsets:0, asets:0, per:'PRE', show:true };
+  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], per:'PRE', show:true };
 
 function sanitize(x){
   if (!x || typeof x !== 'object') return null;
@@ -292,11 +299,38 @@ function sanitize(x){
   s.awayColor = okColor(x.awayColor);
   s.hs = clampN(x.hs); s.as = clampN(x.as);
   s.hsets = clampN(x.hsets,9); s.asets = clampN(x.asets,9);
+  s.hg = clampN(x.hg,99); s.ag = clampN(x.ag,99);
+  s.tb = [7,10].includes(Number(x.tb)) ? Number(x.tb) : 0;
+  s.sc = Array.isArray(x.sc) ? x.sc.slice(0,5).map(v => clip(v,7)).filter(v => /^\d{1,2}-\d{1,2}$/.test(v)) : [];
   s.per = MODS[s.mod].per.some(p => p[0] === x.per) ? x.per : MODS[s.mod].per[0][0];
   s.show = x.show !== false;
   return s;
 }
 const perLabel = s => (MODS[s.mod].per.find(p => p[0] === s.per) || ['',''])[1];
+
+/* tênis: pontos 0/15/30/40/AD; no tie-break, números corridos */
+function pontos(s){
+  if (!MODS[s.mod].tenis) return [String(s.hs), String(s.as)];
+  if (s.tb) return [String(s.hs), String(s.as)];
+  const L = ['0','15','30','40'];
+  if (s.hs >= 3 && s.as >= 3){
+    if (s.hs === s.as) return ['40','40'];
+    return s.hs > s.as ? ['AD','40'] : ['40','AD'];
+  }
+  return [L[Math.min(s.hs,3)], L[Math.min(s.as,3)]];
+}
+/* fecha o set: guarda o parcial, soma o set para quem venceu e avança o período */
+function fecharSet(n, vencedor, parcial){
+  const ten = !!MODS[n.mod].tenis;
+  const h = ten ? n.hg : n.hs, a = ten ? n.ag : n.as;
+  const w = vencedor || (h > a ? 'h' : 'a');
+  if (w === 'h') n.hsets++; else n.asets++;
+  n.sc = [...n.sc, parcial || (h + '-' + a)].slice(-5);
+  n.hs = n.as = n.hg = n.ag = 0; n.tb = 0;
+  const keys = MODS[n.mod].per.map(p => p[0]);
+  const i = keys.indexOf(n.per);
+  if (/^S\d$/.test(n.per) && /^S\d$/.test(keys[i+1] || '')) n.per = keys[i+1];
+}
 
 /* ---------- componente do placar ---------- */
 function makeBug(root){
@@ -313,24 +347,27 @@ function makeBug(root){
 }
 function flash(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 function paintBug(r, s, { hideWhenOff = true } = {}){
-  const vol = !!MODS[s.mod].sets;
+  const M = MODS[s.mod], vol = !!M.sets;
+  const [ph, pa] = pontos(s);
   r.hn.textContent = s.home; r.an.textContent = s.away;
-  if (r.last.hs !== undefined && r.last.hs !== s.hs) flash(r.hs);
-  if (r.last.as !== undefined && r.last.as !== s.as) flash(r.as);
-  r.hs.textContent = s.hs; r.as.textContent = s.as;
+  if (r.last.hs !== undefined && r.last.hs !== ph) flash(r.hs);
+  if (r.last.as !== undefined && r.last.as !== pa) flash(r.as);
+  r.hs.textContent = ph; r.as.textContent = pa;
   r.hsets.hidden = r.asets.hidden = !vol;
-  r.hsets.textContent = s.hsets; r.asets.textContent = s.asets;
+  r.hsets.textContent = M.tenis ? s.hg : s.hsets; r.asets.textContent = M.tenis ? s.ag : s.asets;
   r.away.style.setProperty('--away', s.awayColor);
   const claro = lum(s.awayColor) > .55;
   r.away.style.setProperty('--away-ink', claro ? '#0B1E33' : '#FFFFFF');
   r.away.classList.toggle('claro', claro);
-  r.per.textContent = OV_LABEL[s.per] || perLabel(s);
+  r.per.textContent = (OV_LABEL[s.per] || perLabel(s)) + (M.tenis && s.tb && /^S/.test(s.per) ? (s.tb === 10 ? ' · Super TB' : ' · Tie-break') : '');
   r.per.className = 'per' + (PAUSA.has(s.per) ? ' pausa' : s.per === 'FIM' ? ' fim' : '');
   const partes = [MODS[s.mod].nome + ' ' + (s.naipe === 'F' ? 'Feminino' : 'Masculino')];
   if (s.fase) partes.push(s.fase);
+  if (M.tenis && (s.hsets || s.asets)) partes.push(`Sets ${s.hsets}–${s.asets}`);
+  if (vol && s.sc.length) partes.push(s.sc.join(' · '));
   r.sub.textContent = ' · ' + partes.join(' · ');
   if (hideWhenOff) r.bug.classList.toggle('oculto', !s.show);
-  r.last = { hs:s.hs, as:s.as };
+  r.last = { hs:ph, as:pa };
 }
 
 /* ---------- estado e sincronização ---------- */
@@ -525,8 +562,16 @@ function startControle(){
     $$('.btns').forEach(box => {
       const t = box.dataset.team;
       const extras = inc.length > 1 ? `<div class="row">${inc.slice(1).map(d => `<button class="btn-sm" data-team="${t}" data-d="${d}">+${d}</button>`).join('')}</div>` : '';
-      box.innerHTML = `<button class="btn-plus" data-team="${t}" data-d="1">+1</button>${extras}` +
+      box.innerHTML = `<button class="btn-plus" data-team="${t}" data-d="1">${MODS[state.mod].tenis ? '+ Ponto' : '+1'}</button>${extras}` +
         `<div class="row"><button class="btn-sm minus" data-team="${t}" data-d="-1">−1</button></div>`;
+    });
+  }
+  function buildCounters(){
+    const M = MODS[state.mod];
+    const linhas = M.tenis ? [['g','Games'],['sets','Sets']] : M.sets ? [['sets','Sets']] : [];
+    $$('.cnts').forEach(box => {
+      const sd = box.dataset.side;
+      box.innerHTML = linhas.map(([k,l]) => `<div class="sets-ctl" data-cnt="${sd}${k}"><button data-cd="-1" aria-label="Tirar ${l}">−</button><span>${l} <b>0</b></span><button data-cd="1" aria-label="Somar ${l}">+</button></div>`).join('');
     });
   }
   function buildChips(){
@@ -539,16 +584,19 @@ function startControle(){
     const c = $('#conn'); c.className = 'conn ' + connState;
     $('#connTxt').textContent = connState === 'ok' ? 'Ao vivo' : connState === 'poll' ? 'Conectado (lento)' : connState === 'err' ? 'Sem conexão' : 'Conectando…';
     if (kind === 'conn') return;
-    if (builtFor !== s.mod){ buildScoreButtons(); buildChips(); builtFor = s.mod; }
+    if (builtFor !== s.mod){ buildScoreButtons(); buildCounters(); buildChips(); builtFor = s.mod; }
     paintBug(prev, s, { hideWhenOff:false });
     $('#preview').classList.toggle('off', !s.show);
     $('#prevTag').textContent = s.show ? 'Prévia' : 'Oculto na transmissão';
     $('#cHome').textContent = s.home; $('#cAway').textContent = s.away;
     $('#cAwaySw').style.background = s.awayColor;
-    $('#cHs').textContent = s.hs; $('#cAs').textContent = s.as;
-    const vol = !!MODS[s.mod].sets;
-    $$('.sets-ctl').forEach(el => { el.hidden = !vol; el.querySelector('b').textContent = el.dataset.sets === 'h' ? s.hsets : s.asets; });
+    const [ph, pa] = pontos(s);
+    $('#cHs').textContent = ph; $('#cAs').textContent = pa;
+    const M = MODS[s.mod], vol = !!M.sets;
+    $$('.cnts .sets-ctl').forEach(el => { el.querySelector('b').textContent = s[el.dataset.cnt] ?? 0; });
     $('#closeSet').hidden = !vol;
+    $('#tbWrap').hidden = !M.tenis;
+    $$('#tbSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.tb) === s.tb));
     $$('#perChips .chip').forEach(b => b.classList.toggle('on', b.dataset.per === s.per));
     $('#showSw').setAttribute('aria-checked', String(s.show));
     $('#fMod').value = s.mod;
@@ -567,26 +615,53 @@ function startControle(){
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-team][data-d]');
     if (!b) return;
-    const d = Number(b.dataset.d), key = b.dataset.team === 'h' ? 'hs' : 'as';
+    const d = Number(b.dataset.d), side = b.dataset.team, key = side === 'h' ? 'hs' : 'as';
     if (d < 0 && state[key] === 0) return;
+    const M = MODS[state.mod];
+    let aviso = '';
+    commit(n => {
+      n[key] = Math.max(0, n[key] + d);
+      if (M.tenis && d > 0){
+        const outro = side === 'h' ? 'as' : 'hs', g = side === 'h' ? 'hg' : 'ag';
+        const alvo = n.tb || 4;
+        if (n[key] >= alvo && n[key] - n[outro] >= 2){
+          const quem = side === 'h' ? n.home : n.away;
+          if (n.tb){
+            // tie-break decide o set: conta o game (só no tie-break de 7) e fecha o set
+            if (n.tb === 7){ n[g]++; n.hs = n.as = 0; fecharSet(n, side); }
+            else { const parcial = n.hs + '-' + n.as; n.hs = n.as = 0; fecharSet(n, side, parcial); }
+            aviso = `Tie-break e set para ${quem}`;
+          } else {
+            n[g]++; n.hs = n.as = 0;
+            aviso = `Game ${quem} · ${n.hg}–${n.ag}`;
+            if (n.hg === 6 && n.ag === 6) aviso += ' · ative o tie-break';
+            else if (Math.max(n.hg, n.ag) >= 6 && Math.abs(n.hg - n.ag) >= 2) aviso += ' · fim de set? Toque em Fechar set';
+          }
+        }
+      }
+      if (M.partidas && /^P\d$/.test(n.per)) n.per = 'P' + Math.min(7, n.hs + n.as + 1);
+    });
+    if (aviso) toast(aviso);
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-cd]'); if (!b) return;
+    const key = b.closest('[data-cnt]').dataset.cnt, d = Number(b.dataset.cd);
+    if (!(key in state) || (d < 0 && state[key] === 0)) return;
     commit(n => { n[key] = Math.max(0, n[key] + d); });
   });
-  $$('.sets-ctl button').forEach(b => b.addEventListener('click', () => {
-    const key = b.closest('.sets-ctl').dataset.sets === 'h' ? 'hsets' : 'asets';
-    const d = Number(b.dataset.d);
-    if (d < 0 && state[key] === 0) return;
-    commit(n => { n[key] = Math.max(0, n[key] + d); });
-  }));
+  $('#tbSeg').addEventListener('click', e => {
+    const b = e.target.closest('[data-tb]'); if (!b || Number(b.dataset.tb) === state.tb) return;
+    const tb = Number(b.dataset.tb);
+    if ((state.hs || state.as) && !confirm('Trocar a contagem zera os pontos do game atual. Continuar?')) return;
+    commit(n => { n.tb = tb; n.hs = n.as = 0; });
+  });
   $('#closeSet').addEventListener('click', () => {
-    if (state.hs === state.as){ toast('Set empatado — ajuste o placar antes de fechar'); return; }
-    const venc = state.hs > state.as ? state.home : state.away;
-    if (!confirm(`Fechar set ${state.hs} × ${state.as} para ${venc}?`)) return;
-    commit(n => {
-      if (n.hs > n.as) n.hsets++; else n.asets++;
-      n.hs = 0; n.as = 0;
-      const m = /^S(\d)$/.exec(n.per);
-      n.per = m && Number(m[1]) < 5 ? 'S' + (Number(m[1]) + 1) : n.per;
-    });
+    const ten = !!MODS[state.mod].tenis;
+    const h = ten ? state.hg : state.hs, a = ten ? state.ag : state.as;
+    if (h === a){ toast(`Set empatado (${h} × ${a}) — ajuste antes de fechar`); return; }
+    const venc = h > a ? state.home : state.away;
+    if (!confirm(`Fechar set ${h} × ${a} para ${venc}?`)) return;
+    commit(n => fecharSet(n));
   });
   $('#undo').addEventListener('click', () => {
     const prevS = historico.pop(); if (!prevS) return;
@@ -603,9 +678,9 @@ function startControle(){
 
   // configuração
   $('#fMod').addEventListener('change', e => {
-    const temPlacar = state.hs || state.as || state.hsets || state.asets;
+    const temPlacar = state.hs || state.as || state.hsets || state.asets || state.hg || state.ag;
     if (temPlacar && !confirm('Trocar a modalidade zera o placar. Continuar?')){ e.target.value = state.mod; return; }
-    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = 0; n.per = 'PRE'; });
+    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.sc = []; n.per = 'PRE'; });
   });
   $('#fNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b) commit(n => { n.naipe = b.dataset.v; }); });
   $('#fFase').addEventListener('change', e => commit(n => { n.fase = e.target.value; }));
@@ -639,7 +714,7 @@ function startControle(){
   }));
   $('#reset').addEventListener('click', () => {
     if (!confirm('Zerar placar, sets e voltar para pré-jogo?')) return;
-    commit(n => { n.hs = n.as = n.hsets = n.asets = 0; n.per = 'PRE'; n.show = true; });
+    commit(n => { n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.sc = []; n.per = 'PRE'; n.show = true; });
   });
   $('#newRoom').addEventListener('click', () => {
     if (!confirm('Gerar links novos? O link antigo no PRISM para de funcionar e você terá que colar o novo.')) return;
