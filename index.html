@@ -587,7 +587,7 @@ function startOverlay(){
     document.body.appendChild(d);
     setInterval(() => { d.textContent = `conexão: ${liveVia || (pollWorks ? 'busca periódica' : 'sem conexão')} · recebidas: ${diag.rx} · ws: ${diag.ws} · sse: ${diag.sse}`; }, 1000);
   }
-  openLocal(); pollLatest(); startSync();
+  openLocal(); pollLatest(); startSync(); watchUpdates(true);
 }
 
 /* ================= MODO CONTROLE ================= */
@@ -842,7 +842,32 @@ function startControle(){
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
 
   render(state);
-  openLocal(); pollLatest(); startSync();
+  openLocal(); pollLatest(); startSync(); watchUpdates(false);
+}
+
+/* atualização automática: quando sair uma versão nova do site, o placar da live recarrega sozinho
+   (o estado volta na hora pelo retransmissor); o controle só avisa, para não atrapalhar quem está operando */
+function watchUpdates(auto){
+  if (location.protocol === 'file:') return;
+  const hash = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = (h * 33 + t.charCodeAt(i)) | 0; return h; };
+  const get = () => fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : null).then(t => t && hash(t)).catch(() => null);
+  let base = null, pend = null, avisado = false;
+  get().then(h => { base = h; });
+  setInterval(async () => {
+    const h = await get();
+    if (h == null || base == null) { if (base == null) base = h; return; }
+    if (h === base) { pend = null; return; }
+    if (pend !== h) { pend = h; return; }          // confirma em duas checagens seguidas
+    if (auto) location.reload();
+    else if (!avisado) {
+      avisado = true;
+      const b = document.createElement('button');
+      b.className = 'act prim'; b.style.cssText = 'width:100%;margin-bottom:12px';
+      b.textContent = 'Nova versão do placar — toque para atualizar';
+      b.onclick = () => location.reload();
+      $('#ctl').insertBefore(b, $('#preview'));
+    }
+  }, 45000);
 }
 
 let toastT;
