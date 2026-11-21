@@ -50,6 +50,14 @@ button{cursor:pointer;border:0;background:none}
   color:rgba(255,255,255,.9);border-radius:0 0 calc(var(--u)*.45) calc(var(--u)*.45);font-weight:700;font-size:calc(var(--u)*1.2);
   letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 .bug-sub b{color:var(--verde);font-weight:800}
+.bug-wrap{display:flex;flex-direction:column;align-items:flex-start}
+.flashmsg{margin-top:calc(var(--u)*.7);max-width:min(80vw, calc(var(--u)*70));padding:calc(var(--u)*.75) calc(var(--u)*1.6);
+  background:var(--verde);color:#fff;font:800 calc(var(--u)*2.3)/1.1 'Barlow Condensed',Barlow,sans-serif;letter-spacing:.04em;
+  text-transform:uppercase;border-radius:calc(var(--u)*.5);box-shadow:inset calc(var(--u)*.5) 0 0 var(--azul);
+  filter:drop-shadow(0 calc(var(--u)*.3) calc(var(--u)*.9) rgba(0,0,0,.45));
+  opacity:0;transform:translateY(calc(var(--u)*-1));transition:opacity .35s ease,transform .35s ease;pointer-events:none}
+.flashmsg.on{opacity:1;transform:none}
+.flashmsg:empty{display:none}
 .prova{display:grid;place-items:center;padding:0 calc(var(--u)*1.5);background:#fff;color:var(--navy);font-weight:800;
   font-size:calc(var(--u)*2.5);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;line-height:1}
 .naipe{display:grid;place-items:center;padding:0 calc(var(--u)*1.2);background:var(--navy);color:#fff;font-weight:700;
@@ -229,6 +237,14 @@ details[open] summary{margin-bottom:12px}
     <div class="chips" id="perChips"></div>
   </section>
 
+  <section class="card" id="msgCard">
+    <h2>Mensagem na live</h2>
+    <label class="field" style="margin-bottom:8px"><input type="text" id="msgTxt" maxlength="60" placeholder="Ex.: GOL DA INSANA!" autocomplete="off" aria-label="Texto da mensagem"></label>
+    <div class="seg" id="msgDur" style="margin-bottom:8px"><button data-d="3">3 s</button><button data-d="5">5 s</button><button data-d="8">8 s</button></div>
+    <button class="act prim" id="msgGo" style="width:100%">Mostrar na live</button>
+    <div class="chips" id="msgRecent" style="margin-top:10px"></div>
+  </section>
+
   <section class="card">
     <div class="toggle">
       <div>Mostrar placar na transmissão<small>Desligue para esconder durante entrevistas ou replays</small></div>
@@ -308,7 +324,7 @@ function lum(hex){
 }
 
 const PADRAO = { v:1, t:0, src:'', mod:'handebol', naipe:'M', fase:'', home:'INSANA', away:'LENDÁRIA', awayColor:'#2B2F36',
-  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], prova:'bor', raias:[], imp:'', hb:7, ab:7, per:'PRE', show:true };
+  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], prova:'bor', raias:[], imp:'', hb:7, ab:7, msg:{ id:'', txt:'', dur:5, at:0 }, per:'PRE', show:true };
 
 function sanitize(x){
   if (!x || typeof x !== 'object') return null;
@@ -331,6 +347,8 @@ function sanitize(x){
   let rs = Array.isArray(x.raias) ? x.raias : (x.raia || x.atleta || x.pos ? [{ r:x.raia, n:x.atleta, p:x.pos }] : []);
   s.imp = x.imp === 'P' || x.imp === 'I' ? x.imp : '';
   s.hb = x.hb === undefined ? 7 : clampN(x.hb,15); s.ab = x.ab === undefined ? 7 : clampN(x.ab,15);
+  const m = x.msg && typeof x.msg === 'object' ? x.msg : {};
+  s.msg = { id:clip(m.id,20), txt:clip(m.txt,60), dur:[3,5,8].includes(Number(m.dur)) ? Number(m.dur) : 5, at:Number(m.at) || 0 };
   s.raias = rs.slice(0,8).filter(l => l && typeof l === 'object').map(l => ({ r:clampN(l.r,10), n:clip(l.n,24), p:clampN(l.p,12) }));
   return s;
 }
@@ -362,6 +380,7 @@ function fecharSet(n, vencedor, parcial){
 
 /* ---------- componente do placar ---------- */
 function makeBug(root){
+  root.classList.add('bug-wrap');
   root.innerHTML =
     '<div class="bug"><div class="bug-row">' +
       '<div class="team home"><span class="nm"></span><span class="sets"></span></div>' +
@@ -371,15 +390,27 @@ function makeBug(root){
     '</div><div class="bug-row swim" hidden>' +
       '<div class="team home swim-tag"><span class="nm">Natação</span></div>' +
       '<div class="prova"></div><div class="naipe"></div><div class="per sper"></div>' +
-    '</div><div class="bug-sub"><b>Intermed CO</b><span></span></div></div>';
+    '</div><div class="bug-sub"><b>Intermed CO</b><span></span></div></div>' +
+    '<div class="flashmsg" role="status"></div>';
   const q = s => root.querySelector(s);
   return { bug:q('.bug'), main:q('.bug-row:not(.swim)'), swim:q('.bug-row.swim'), prova:q('.prova'), naipe:q('.naipe'), sper:q('.sper'),
     hn:q('.bug-row:not(.swim) .home .nm'), hsets:q('.home .sets'), hs:q('.score.hs'), as:q('.score.as'),
-    away:q('.team.away'), an:q('.away .nm'), asets:q('.away .sets'), per:q('.bug-row:not(.swim) .per'), sub:q('.bug-sub span'), last:{} };
+    away:q('.team.away'), an:q('.away .nm'), asets:q('.away .sets'), per:q('.bug-row:not(.swim) .per'), sub:q('.bug-sub span'), fm:q('.flashmsg'), last:{} };
 }
 function flash(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function showMsg(r, m){
+  // mostra a mensagem só quando ela muda depois que a página abriu, e só se for recente
+  if (r.msgSeen === undefined){ r.msgSeen = m.id; return; }
+  if (!m.id || m.id === r.msgSeen) return;
+  r.msgSeen = m.id;
+  if (!m.txt || Math.abs(Date.now() - m.at) > 30000) return;
+  r.fm.textContent = m.txt;
+  r.fm.classList.remove('on'); void r.fm.offsetWidth; r.fm.classList.add('on');
+  clearTimeout(r.fmT); r.fmT = setTimeout(() => r.fm.classList.remove('on'), m.dur * 1000);
+}
 function paintBug(r, s, { hideWhenOff = true } = {}){
   const M = MODS[s.mod], vol = !!M.sets;
+  showMsg(r, s.msg);
   r.main.hidden = !!M.natacao; r.swim.hidden = !M.natacao;
   if (hideWhenOff) r.bug.classList.toggle('oculto', !s.show);
   if (M.natacao){
@@ -755,7 +786,7 @@ function startControle(){
   $('#undo').addEventListener('click', () => {
     const prevS = historico.pop(); if (!prevS) return;
     const p = sanitize(JSON.parse(prevS));
-    commit(n => Object.assign(n, p), { undoable:false });
+    commit(n => { const cur = n.msg; Object.assign(n, p); n.msg = cur; }, { undoable:false });
   });
 
   // período e visibilidade
@@ -806,6 +837,29 @@ function startControle(){
   });
   $('#fColor').addEventListener('click', e => { const b = e.target.closest('.sw'); if (b) commit(n => { n.awayColor = b.dataset.c; }); });
   $('#fColorPick').addEventListener('input', e => commit(n => { n.awayColor = e.target.value; }, { undoable:false }));
+
+  // mensagem rápida na live
+  let msgDur = Number(lsGet('placar-insana:msgdur')) || 5;
+  if (![3,5,8].includes(msgDur)) msgDur = 5;
+  const paintDur = () => $$('#msgDur button').forEach(b => b.classList.toggle('on', Number(b.dataset.d) === msgDur));
+  paintDur();
+  $('#msgDur').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; msgDur = Number(b.dataset.d); lsSet('placar-insana:msgdur', String(msgDur)); paintDur(); });
+  const recentes = () => { try { const a = JSON.parse(lsGet('placar-insana:msgs') || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string').slice(0, 6) : []; } catch { return []; } };
+  function paintRecent(){
+    const box = $('#msgRecent'); box.textContent = '';
+    recentes().forEach(t => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = t; b.dataset.txt = t; box.appendChild(b); });
+  }
+  function enviarMsg(txt){
+    txt = clip(txt, 60);
+    if (!txt){ toast('Escreva a mensagem primeiro'); $('#msgTxt').focus(); return; }
+    commit(n => { n.msg = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), txt, dur: msgDur, at: Date.now() }; }, { undoable:false });
+    lsSet('placar-insana:msgs', JSON.stringify([txt, ...recentes().filter(x => x !== txt)].slice(0, 6)));
+    paintRecent(); toast('Mensagem na live');
+  }
+  $('#msgGo').addEventListener('click', () => enviarMsg($('#msgTxt').value));
+  $('#msgTxt').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); enviarMsg($('#msgTxt').value); } });
+  $('#msgRecent').addEventListener('click', e => { const b = e.target.closest('[data-txt]'); if (!b) return; $('#msgTxt').value = b.dataset.txt; enviarMsg(b.dataset.txt); });
+  paintRecent();
 
   // links
   const base = location.origin + location.pathname;
