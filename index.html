@@ -220,6 +220,8 @@ details[open] summary{margin-bottom:12px}
     </div>
     <div class="field" id="tbWrap" hidden style="margin:12px 0 0"><span>Contagem do game</span>
       <div class="seg" id="tbSeg"><button data-tb="0">Normal</button><button data-tb="7">Tie-break (7)</button><button data-tb="10">Super TB (10)</button></div></div>
+    <div class="field" id="pmWrap" hidden style="margin:12px 0 0"><span>A Insana é</span>
+      <div class="seg" id="pmSeg"><button data-pm="">Indefinido</button><button data-pm="P">Par</button><button data-pm="I">Ímpar</button></div></div>
   </section>
 
   <section class="card">
@@ -306,7 +308,7 @@ function lum(hex){
 }
 
 const PADRAO = { v:1, t:0, src:'', mod:'handebol', naipe:'M', fase:'', home:'INSANA', away:'LENDÁRIA', awayColor:'#2B2F36',
-  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], prova:'bor', raias:[], per:'PRE', show:true };
+  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], prova:'bor', raias:[], imp:'', hb:7, ab:7, per:'PRE', show:true };
 
 function sanitize(x){
   if (!x || typeof x !== 'object') return null;
@@ -327,6 +329,8 @@ function sanitize(x){
   s.show = x.show !== false;
   s.prova = PROVAS.some(p => p[0] === x.prova) ? x.prova : 'bor';
   let rs = Array.isArray(x.raias) ? x.raias : (x.raia || x.atleta || x.pos ? [{ r:x.raia, n:x.atleta, p:x.pos }] : []);
+  s.imp = x.imp === 'P' || x.imp === 'I' ? x.imp : '';
+  s.hb = x.hb === undefined ? 7 : clampN(x.hb,15); s.ab = x.ab === undefined ? 7 : clampN(x.ab,15);
   s.raias = rs.slice(0,8).filter(l => l && typeof l === 'object').map(l => ({ r:clampN(l.r,10), n:clip(l.n,24), p:clampN(l.p,12) }));
   return s;
 }
@@ -398,8 +402,13 @@ function paintBug(r, s, { hideWhenOff = true } = {}){
   if (r.last.hs !== undefined && r.last.hs !== ph) flash(r.hs);
   if (r.last.as !== undefined && r.last.as !== pa) flash(r.as);
   r.hs.textContent = ph; r.as.textContent = pa;
-  r.hsets.hidden = r.asets.hidden = !vol;
-  r.hsets.textContent = M.tenis ? s.hg : s.hsets; r.asets.textContent = M.tenis ? s.ag : s.asets;
+  r.hsets.hidden = r.asets.hidden = !(vol || M.partidas);
+  if (M.partidas){
+    const lh = s.imp === 'P' ? 'Par' : s.imp === 'I' ? 'Ímpar' : '', la = s.imp === 'P' ? 'Ímpar' : s.imp === 'I' ? 'Par' : '';
+    r.hsets.textContent = (lh ? lh + ' · ' : '') + s.hb; r.asets.textContent = (la ? la + ' · ' : '') + s.ab;
+  } else {
+    r.hsets.textContent = M.tenis ? s.hg : s.hsets; r.asets.textContent = M.tenis ? s.ag : s.asets;
+  }
   r.away.style.setProperty('--away', s.awayColor);
   const claro = lum(s.awayColor) > .55;
   r.away.style.setProperty('--away-ink', claro ? '#0B1E33' : '#FFFFFF');
@@ -630,7 +639,7 @@ function startControle(){
   }
   function buildCounters(){
     const M = MODS[state.mod];
-    const linhas = M.tenis ? [['g','Games'],['sets','Sets']] : M.sets ? [['sets','Sets']] : [];
+    const linhas = M.tenis ? [['g','Games'],['sets','Sets']] : M.sets ? [['sets','Sets']] : M.partidas ? [['b','Faltam']] : [];
     $$('.cnts').forEach(box => {
       const sd = box.dataset.side;
       box.innerHTML = linhas.map(([k,l]) => `<div class="sets-ctl" data-cnt="${sd}${k}"><button data-cd="-1" aria-label="Tirar ${l}">−</button><span>${l} <b>0</b></span><button data-cd="1" aria-label="Somar ${l}">+</button></div>`).join('');
@@ -670,6 +679,8 @@ function startControle(){
     $$('.cnts .sets-ctl').forEach(el => { el.querySelector('b').textContent = s[el.dataset.cnt] ?? 0; });
     $('#closeSet').hidden = !vol;
     $('#tbWrap').hidden = !M.tenis;
+    $('#pmWrap').hidden = !M.partidas;
+    $$('#pmSeg button').forEach(b => b.classList.toggle('on', b.dataset.pm === s.imp));
     $$('#tbSeg button').forEach(b => b.classList.toggle('on', Number(b.dataset.tb) === s.tb));
     $$('#perChips .chip').forEach(b => b.classList.toggle('on', b.dataset.per === s.per));
     $('#showSw').setAttribute('aria-checked', String(s.show));
@@ -713,6 +724,7 @@ function startControle(){
         }
       }
       if (M.partidas && /^P\d$/.test(n.per)) n.per = 'P' + Math.min(7, n.hs + n.as + 1);
+      if (M.partidas && d > 0){ n.hb = n.ab = 7; n.imp = ''; aviso = 'Nova partida · bolas e par/ímpar zerados'; }
     });
     if (aviso) toast(aviso);
   });
@@ -721,6 +733,10 @@ function startControle(){
     const key = b.closest('[data-cnt]').dataset.cnt, d = Number(b.dataset.cd);
     if (!(key in state) || (d < 0 && state[key] === 0)) return;
     commit(n => { n[key] = Math.max(0, n[key] + d); });
+  });
+  $('#pmSeg').addEventListener('click', e => {
+    const b = e.target.closest('[data-pm]'); if (!b || b.dataset.pm === state.imp) return;
+    commit(n => { n.imp = b.dataset.pm; });
   });
   $('#tbSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-tb]'); if (!b || Number(b.dataset.tb) === state.tb) return;
@@ -753,7 +769,7 @@ function startControle(){
   $('#fMod').addEventListener('change', e => {
     const temPlacar = state.hs || state.as || state.hsets || state.asets || state.hg || state.ag;
     if (temPlacar && !confirm('Trocar a modalidade zera o placar. Continuar?')){ e.target.value = state.mod; return; }
-    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.raias = []; n.sc = []; n.per = 'PRE'; });
+    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.raias = []; n.sc = []; n.imp = ''; n.hb = n.ab = 7; n.per = 'PRE'; });
   });
   $('#fNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b) commit(n => { n.naipe = b.dataset.v; }); });
   $('#sNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b && b.dataset.v !== state.naipe) commit(n => { n.naipe = b.dataset.v; n.raias = n.raias.map(l => ({ ...l, p:0 })); if (n.per === 'RES') n.per = 'PROX'; }); });
@@ -811,7 +827,7 @@ function startControle(){
   }));
   $('#reset').addEventListener('click', () => {
     if (!confirm('Zerar placar, sets e voltar para pré-jogo?')) return;
-    commit(n => { n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.raias = []; n.prova = 'bor'; n.sc = []; n.per = 'PRE'; n.show = true; });
+    commit(n => { n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.raias = []; n.prova = 'bor'; n.sc = []; n.imp = ''; n.hb = n.ab = 7; n.per = 'PRE'; n.show = true; });
   });
   $('#newRoom').addEventListener('click', () => {
     if (!confirm('Gerar links novos? O link antigo no PRISM para de funcionar e você terá que colar o novo.')) return;
