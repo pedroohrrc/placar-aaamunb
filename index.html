@@ -238,10 +238,6 @@ details[open] summary{margin-bottom:12px}
     <summary>Configurar jogo</summary>
     <label class="field"><span>Modalidade</span><select id="fMod"></select></label>
     <div class="field"><span>Naipe</span><div class="seg" id="fNaipe"><button data-v="M">Masculino</button><button data-v="F">Feminino</button></div></div>
-    <label class="field"><span>Fase</span><select id="fFase">
-      <option value="">Sem fase</option><option>Quartas de final</option>
-      <option>Semifinal</option><option>Disputa de 3º lugar</option><option>Final</option><option>Eliminatória</option><option>Amistoso</option>
-    </select></label>
     <label class="field" id="fAwayWrap"><span>Adversário</span><select id="fAway"></select></label>
     <label class="field" id="fAwayOtherWrap" hidden><span>Nome do adversário</span><input type="text" id="fAwayOther" maxlength="14" placeholder="Ex.: ATLÉTICA X" autocomplete="off"></label>
     <div class="field" id="fColorWrap"><span>Cor do adversário</span><div class="swatches" id="fColor"></div></div>
@@ -318,7 +314,7 @@ function sanitize(x){
   s.t = Number(x.t) || 0; s.src = clip(x.src,16);
   s.mod = MODS[x.mod] ? x.mod : PADRAO.mod;
   s.naipe = x.naipe === 'F' ? 'F' : 'M';
-  s.fase = clip(x.fase,24);
+  s.fase = '';
   s.home = clip(x.home,14) || 'INSANA';
   s.away = clip(x.away,14) || 'ADVERSÁRIO';
   s.awayColor = okColor(x.awayColor);
@@ -391,7 +387,6 @@ function paintBug(r, s, { hideWhenOff = true } = {}){
     r.sper.textContent = s.per === 'RES' && cols.length ? 'Insana ' + cols.map(c => c + 'º').join(' · ') : perLabel(s);
     r.sper.className = 'per sper' + (s.per === 'PROX' ? ' pausa' : s.per === 'RES' && !cols.length ? ' fim' : '');
     const partes = [];
-    if (s.fase) partes.push(s.fase);
     const ls = s.raias.map(l => [l.r ? 'Raia ' + l.r : '', l.n].filter(Boolean).join(' ')).filter(Boolean);
     if (ls.length) partes.push('Insana: ' + ls.join(' / '));
     r.sub.textContent = partes.length ? ' · ' + partes.join(' · ') : ' · Natação';
@@ -412,7 +407,6 @@ function paintBug(r, s, { hideWhenOff = true } = {}){
   r.per.textContent = (OV_LABEL[s.per] || perLabel(s)) + (M.tenis && s.tb && /^S/.test(s.per) ? (s.tb === 10 ? ' · Super TB' : ' · Tie-break') : '');
   r.per.className = 'per' + (PAUSA.has(s.per) ? ' pausa' : s.per === 'FIM' ? ' fim' : '');
   const partes = [MODS[s.mod].nome + ' ' + (s.naipe === 'F' ? 'Feminino' : 'Masculino')];
-  if (s.fase) partes.push(s.fase);
   if (M.tenis && (s.hsets || s.asets)) partes.push(`Sets ${s.hsets}–${s.asets}`);
   if (vol && s.sc.length) partes.push(s.sc.join(' · '));
   r.sub.textContent = ' · ' + partes.join(' · ');
@@ -681,7 +675,6 @@ function startControle(){
     $('#showSw').setAttribute('aria-checked', String(s.show));
     $('#fMod').value = s.mod;
     $$('#fNaipe button').forEach(b => b.classList.toggle('on', b.dataset.v === s.naipe));
-    $('#fFase').value = s.fase;
     const conhecido = RIVAIS.some(n => n.toUpperCase() === s.away);
     $('#fAway').value = conhecido ? s.away : '__OUTRA';
     $('#fAwayOtherWrap').hidden = conhecido || nat;
@@ -788,7 +781,6 @@ function startControle(){
     const i = laneIdx(el), v = clip(el.value, 24);
     commit(n => { n.raias[i].n = v; }, { undoable:false });
   });
-  $('#fFase').addEventListener('change', e => commit(n => { n.fase = e.target.value; }));
   $('#fAway').addEventListener('change', e => {
     if (e.target.value === '__OUTRA'){ $('#fAwayOtherWrap').hidden = false; $('#fAwayOther').value = ''; $('#fAwayOther').focus(); return; }
     commit(n => { n.away = e.target.value; });
