@@ -50,6 +50,11 @@ button{cursor:pointer;border:0;background:none}
   color:rgba(255,255,255,.9);border-radius:0 0 calc(var(--u)*.45) calc(var(--u)*.45);font-weight:700;font-size:calc(var(--u)*1.2);
   letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 .bug-sub b{color:var(--verde);font-weight:800}
+.prova{display:grid;place-items:center;padding:0 calc(var(--u)*1.5);background:#fff;color:var(--navy);font-weight:800;
+  font-size:calc(var(--u)*2.5);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;line-height:1}
+.naipe{display:grid;place-items:center;padding:0 calc(var(--u)*1.2);background:var(--navy);color:#fff;font-weight:700;
+  font-size:calc(var(--u)*1.6);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.swim-tag{min-width:0}
 
 /* ---------- MODO TRANSMISSÃO ---------- */
 body.overlay{background:transparent;overflow:hidden}
@@ -81,6 +86,7 @@ body.overlay{background:transparent;overflow:hidden}
 .preview::before{content:"";position:absolute;inset:18% 8% -30%;border:2px solid rgba(255,255,255,.35);border-radius:6px}
 .preview::after{content:"";position:absolute;left:50%;top:18%;bottom:0;border-left:2px solid rgba(255,255,255,.35)}
 .preview .slot{position:absolute;left:3.5cqw;top:4.5cqw;--u:1.95cqw;z-index:1}
+.preview.swim .slot{--u:1.4cqw}
 .preview .tag{position:absolute;right:10px;bottom:10px;z-index:2;font-size:11.5px;font-weight:700;letter-spacing:.06em;
   text-transform:uppercase;color:#fff;background:rgba(11,30,51,.7);padding:4px 8px;border-radius:6px}
 .preview.off .slot{opacity:.35}
@@ -176,7 +182,19 @@ details[open] summary{margin-bottom:12px}
     <span class="tag" id="prevTag">Prévia</span>
   </section>
 
-  <section class="card">
+  <section class="card" id="swimCard" hidden>
+    <h2>Prova em disputa</h2>
+    <div class="chips" id="provaChips"></div>
+    <div class="field" style="margin-top:14px"><span>Naipe</span><div class="seg" id="sNaipe"><button data-v="M">Masculino</button><button data-v="F">Feminino</button></div></div>
+    <label class="field"><span>Atleta ou equipe da Insana (opcional)</span><input type="text" id="sAtleta" maxlength="30" placeholder="Ex.: Pedro / Revezamento A" autocomplete="off"></label>
+    <div class="grid2">
+      <label class="field"><span>Raia da Insana</span><select id="sRaia"></select></label>
+      <label class="field"><span>Colocação da Insana</span><select id="sPos"></select></label>
+    </div>
+    <button class="act prim" id="nextProva" style="width:100%">Próxima prova →</button>
+  </section>
+
+  <section class="card" id="boardCard">
     <div class="board">
       <div class="side home">
         <div class="side-name" id="cHome">INSANA</div>
@@ -217,11 +235,11 @@ details[open] summary{margin-bottom:12px}
     <div class="field"><span>Naipe</span><div class="seg" id="fNaipe"><button data-v="M">Masculino</button><button data-v="F">Feminino</button></div></div>
     <label class="field"><span>Fase</span><select id="fFase">
       <option value="">Sem fase</option><option>Oitavas de final</option><option>Quartas de final</option>
-      <option>Semifinal</option><option>Disputa de 3º lugar</option><option>Final</option><option>Amistoso</option>
+      <option>Semifinal</option><option>Disputa de 3º lugar</option><option>Final</option><option>Eliminatória</option><option>Amistoso</option>
     </select></label>
-    <label class="field"><span>Adversário</span><select id="fAway"></select></label>
+    <label class="field" id="fAwayWrap"><span>Adversário</span><select id="fAway"></select></label>
     <label class="field" id="fAwayOtherWrap" hidden><span>Nome do adversário</span><input type="text" id="fAwayOther" maxlength="14" placeholder="Ex.: ATLÉTICA X" autocomplete="off"></label>
-    <div class="field"><span>Cor do adversário</span><div class="swatches" id="fColor"></div></div>
+    <div class="field" id="fColorWrap"><span>Cor do adversário</span><div class="swatches" id="fColor"></div></div>
   </details>
 
   <details class="card" id="linksCard">
@@ -260,11 +278,13 @@ const MODS = {
   tenis:    { nome:'Tênis de campo', inc:[1], sets:true, tenis:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['FIM','Encerrado']] },
   mesa:     { nome:'Tênis de mesa', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['S4','4º set'],['S5','5º set'],['FIM','Encerrado']] },
   sinuca:   { nome:'Sinuca', inc:[1], partidas:true, per:[['PRE','Pré-jogo'],['P1','1ª partida'],['P2','2ª partida'],['P3','3ª partida'],['P4','4ª partida'],['P5','5ª partida'],['P6','6ª partida'],['P7','7ª partida'],['FIM','Encerrado']] },
+  natacao:  { nome:'Natação', natacao:true, inc:[1], per:[['PROX','Próxima prova'],['AND','Em disputa'],['RES','Resultado']] },
   peteca:   { nome:'Peteca', inc:[1], sets:true, per:[['PRE','Pré-jogo'],['S1','1º set'],['S2','2º set'],['S3','3º set'],['FIM','Encerrado']] }
 };
 const RIVAIS = ['Lendária','Pirraça','Madrasta','Magnata','Tormenta','AAAESCS','Unieva','Carrasca','UNIC','Isquemia','PUC'];
 const CORES = ['#2B2F36','#B3261E','#E8590C','#F2C200','#7B2CBF','#C2185B','#0B7A75','#5E3A1E','#111111','#FFFFFF'];
-const PAUSA = new Set(['PRE','INT']);
+const PAUSA = new Set(['PRE','INT','PROX']);
+const PROVAS = [['bor','50 m Borboleta'],['pei','50 m Peito'],['liv','50 m Livre'],['cos','50 m Costas'],['med','4×50 m Medley'],['rliv','4×50 m Livre']];
 const OV_LABEL = { PRE:'Pré-jogo', FIM:'Fim de jogo' };
 
 /* ---------- utilidades ---------- */
@@ -285,7 +305,7 @@ function lum(hex){
 }
 
 const PADRAO = { v:1, t:0, src:'', mod:'handebol', naipe:'M', fase:'', home:'INSANA', away:'LENDÁRIA', awayColor:'#2B2F36',
-  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], per:'PRE', show:true };
+  hs:0, as:0, hsets:0, asets:0, hg:0, ag:0, tb:0, sc:[], prova:'bor', atleta:'', raia:0, pos:0, per:'PRE', show:true };
 
 function sanitize(x){
   if (!x || typeof x !== 'object') return null;
@@ -304,6 +324,9 @@ function sanitize(x){
   s.sc = Array.isArray(x.sc) ? x.sc.slice(0,5).map(v => clip(v,7)).filter(v => /^\d{1,2}-\d{1,2}$/.test(v)) : [];
   s.per = MODS[s.mod].per.some(p => p[0] === x.per) ? x.per : MODS[s.mod].per[0][0];
   s.show = x.show !== false;
+  s.prova = PROVAS.some(p => p[0] === x.prova) ? x.prova : 'bor';
+  s.atleta = clip(x.atleta,30);
+  s.raia = clampN(x.raia,10); s.pos = clampN(x.pos,12);
   return s;
 }
 const perLabel = s => (MODS[s.mod].per.find(p => p[0] === s.per) || ['',''])[1];
@@ -340,14 +363,35 @@ function makeBug(root){
       '<div class="score hs"></div><div class="score as"></div>' +
       '<div class="team away"><span class="sets"></span><span class="nm"></span></div>' +
       '<div class="per"></div>' +
+    '</div><div class="bug-row swim" hidden>' +
+      '<div class="team home swim-tag"><span class="nm">Natação</span></div>' +
+      '<div class="prova"></div><div class="naipe"></div><div class="per sper"></div>' +
     '</div><div class="bug-sub"><b>Intermed CO</b><span></span></div></div>';
   const q = s => root.querySelector(s);
-  return { bug:q('.bug'), hn:q('.home .nm'), hsets:q('.home .sets'), hs:q('.score.hs'), as:q('.score.as'),
-    away:q('.team.away'), an:q('.away .nm'), asets:q('.away .sets'), per:q('.per'), sub:q('.bug-sub span'), last:{} };
+  return { bug:q('.bug'), main:q('.bug-row:not(.swim)'), swim:q('.bug-row.swim'), prova:q('.prova'), naipe:q('.naipe'), sper:q('.sper'),
+    hn:q('.bug-row:not(.swim) .home .nm'), hsets:q('.home .sets'), hs:q('.score.hs'), as:q('.score.as'),
+    away:q('.team.away'), an:q('.away .nm'), asets:q('.away .sets'), per:q('.bug-row:not(.swim) .per'), sub:q('.bug-sub span'), last:{} };
 }
 function flash(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 function paintBug(r, s, { hideWhenOff = true } = {}){
   const M = MODS[s.mod], vol = !!M.sets;
+  r.main.hidden = !!M.natacao; r.swim.hidden = !M.natacao;
+  if (hideWhenOff) r.bug.classList.toggle('oculto', !s.show);
+  if (M.natacao){
+    const prova = (PROVAS.find(p => p[0] === s.prova) || PROVAS[0])[1];
+    if (r.last.prova !== undefined && r.last.prova !== prova) flash(r.prova);
+    r.prova.textContent = prova;
+    r.naipe.textContent = s.naipe === 'F' ? 'Feminino' : 'Masculino';
+    r.sper.textContent = s.per === 'RES' && s.pos ? `Insana ${s.pos}º` : perLabel(s);
+    r.sper.className = 'per sper' + (s.per === 'PROX' ? ' pausa' : s.per === 'RES' && !s.pos ? ' fim' : '');
+    const partes = [];
+    if (s.fase) partes.push(s.fase);
+    if (s.raia) partes.push('Raia ' + s.raia);
+    if (s.atleta) partes.push(s.atleta + ' (Insana)');
+    r.sub.textContent = partes.length ? ' · ' + partes.join(' · ') : ' · Natação';
+    r.last = { prova };
+    return;
+  }
   const [ph, pa] = pontos(s);
   r.hn.textContent = s.home; r.an.textContent = s.away;
   if (r.last.hs !== undefined && r.last.hs !== ph) flash(r.hs);
@@ -367,7 +411,7 @@ function paintBug(r, s, { hideWhenOff = true } = {}){
   if (vol && s.sc.length) partes.push(s.sc.join(' · '));
   r.sub.textContent = ' · ' + partes.join(' · ');
   if (hideWhenOff) r.bug.classList.toggle('oculto', !s.show);
-  r.last = { hs:ph, as:pa };
+  r.last = { hs:ph, as:pa, prova:r.last.prova };
 }
 
 /* ---------- estado e sincronização ---------- */
@@ -557,6 +601,10 @@ function startControle(){
   $('#fColor').innerHTML = CORES.map(c => `<button class="sw" data-c="${c}" style="background:${c}" aria-label="Cor ${c}"></button>`).join('') +
     '<label class="sw-pick" aria-label="Escolher outra cor">+<input type="color" id="fColorPick" value="#2B2F36"></label>';
 
+  $('#provaChips').innerHTML = PROVAS.map(([k,l]) => `<button class="chip" data-prova="${k}">${l}</button>`).join('');
+  $('#sRaia').innerHTML = '<option value="0">—</option>' + Array.from({length:10}, (_, i) => `<option value="${i+1}">Raia ${i+1}</option>`).join('');
+  $('#sPos').innerHTML = '<option value="0">—</option>' + Array.from({length:12}, (_, i) => `<option value="${i+1}">${i+1}º lugar</option>`).join('');
+
   function buildScoreButtons(){
     const inc = MODS[state.mod].inc;
     $$('.btns').forEach(box => {
@@ -585,6 +633,19 @@ function startControle(){
     $('#connTxt').textContent = connState === 'ok' ? 'Ao vivo' : connState === 'poll' ? 'Conectado (lento)' : connState === 'err' ? 'Sem conexão' : 'Conectando…';
     if (kind === 'conn') return;
     if (builtFor !== s.mod){ buildScoreButtons(); buildCounters(); buildChips(); builtFor = s.mod; }
+    const nat = !!MODS[s.mod].natacao;
+    $('#swimCard').hidden = !nat; $('#boardCard').hidden = nat;
+    $('#preview').classList.toggle('swim', nat);
+    $('#fAwayWrap').hidden = nat; $('#fColorWrap').hidden = nat;
+    if (nat){
+      $$('#provaChips .chip').forEach(b => b.classList.toggle('on', b.dataset.prova === s.prova));
+      $$('#sNaipe button').forEach(b => b.classList.toggle('on', b.dataset.v === s.naipe));
+      if (document.activeElement !== $('#sAtleta')) $('#sAtleta').value = s.atleta;
+      $('#sRaia').value = String(s.raia); $('#sPos').value = String(s.pos);
+      const i = PROVAS.findIndex(p => p[0] === s.prova);
+      $('#nextProva').disabled = i >= PROVAS.length - 1;
+      $('#nextProva').textContent = i < PROVAS.length - 1 ? `Próxima: ${PROVAS[i+1][1]} →` : 'Última prova';
+    }
     paintBug(prev, s, { hideWhenOff:false });
     $('#preview').classList.toggle('off', !s.show);
     $('#prevTag').textContent = s.show ? 'Prévia' : 'Oculto na transmissão';
@@ -604,7 +665,7 @@ function startControle(){
     $('#fFase').value = s.fase;
     const conhecido = RIVAIS.some(n => n.toUpperCase() === s.away);
     $('#fAway').value = conhecido ? s.away : '__OUTRA';
-    $('#fAwayOtherWrap').hidden = conhecido;
+    $('#fAwayOtherWrap').hidden = conhecido || nat;
     if (!conhecido && document.activeElement !== $('#fAwayOther')) $('#fAwayOther').value = s.away;
     $$('#fColor .sw').forEach(b => b.classList.toggle('on', b.dataset.c.toLowerCase() === s.awayColor.toLowerCase()));
     $('#undo').disabled = historico.length === 0;
@@ -680,9 +741,21 @@ function startControle(){
   $('#fMod').addEventListener('change', e => {
     const temPlacar = state.hs || state.as || state.hsets || state.asets || state.hg || state.ag;
     if (temPlacar && !confirm('Trocar a modalidade zera o placar. Continuar?')){ e.target.value = state.mod; return; }
-    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.sc = []; n.per = 'PRE'; });
+    commit(n => { n.mod = e.target.value; n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = n.pos = n.raia = 0; n.atleta = ''; n.sc = []; n.per = 'PRE'; });
   });
   $('#fNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b) commit(n => { n.naipe = b.dataset.v; }); });
+  $('#sNaipe').addEventListener('click', e => { const b = e.target.closest('button'); if (b && b.dataset.v !== state.naipe) commit(n => { n.naipe = b.dataset.v; n.pos = 0; if (n.per === 'RES') n.per = 'PROX'; }); });
+  $('#provaChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-prova]'); if (!b || b.dataset.prova === state.prova) return;
+    commit(n => { n.prova = b.dataset.prova; n.pos = 0; if (n.per === 'RES') n.per = 'PROX'; });
+  });
+  $('#nextProva').addEventListener('click', () => {
+    const i = PROVAS.findIndex(p => p[0] === state.prova); if (i >= PROVAS.length - 1) return;
+    commit(n => { n.prova = PROVAS[i+1][0]; n.pos = 0; n.raia = 0; n.atleta = ''; n.per = 'PROX'; });
+  });
+  $('#sAtleta').addEventListener('input', e => { const v = clip(e.target.value, 30); commit(n => { n.atleta = v; }, { undoable:false }); });
+  $('#sRaia').addEventListener('change', e => commit(n => { n.raia = Number(e.target.value); }));
+  $('#sPos').addEventListener('change', e => commit(n => { n.pos = Number(e.target.value); if (n.pos) n.per = 'RES'; }));
   $('#fFase').addEventListener('change', e => commit(n => { n.fase = e.target.value; }));
   $('#fAway').addEventListener('change', e => {
     if (e.target.value === '__OUTRA'){ $('#fAwayOtherWrap').hidden = false; $('#fAwayOther').value = ''; $('#fAwayOther').focus(); return; }
@@ -714,7 +787,7 @@ function startControle(){
   }));
   $('#reset').addEventListener('click', () => {
     if (!confirm('Zerar placar, sets e voltar para pré-jogo?')) return;
-    commit(n => { n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = 0; n.sc = []; n.per = 'PRE'; n.show = true; });
+    commit(n => { n.hs = n.as = n.hsets = n.asets = n.hg = n.ag = n.tb = n.pos = n.raia = 0; n.atleta = ''; n.prova = 'bor'; n.sc = []; n.per = 'PRE'; n.show = true; });
   });
   $('#newRoom').addEventListener('click', () => {
     if (!confirm('Gerar links novos? O link antigo no PRISM para de funcionar e você terá que colar o novo.')) return;
